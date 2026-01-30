@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meetup Organizing Information System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            line-height: 1.6;
+            color: #24292e;
+            background-color: #ffffff;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        
+        h1 {
+            font-size: 2.5em;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #1a1a1a;
+        }
+        
+        h2 {
+            font-size: 1.8em;
+            font-weight: 600;
+            margin: 40px 0 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #e1e4e8;
+            color: #1a1a1a;
+        }
+        
+        h3 {
+            font-size: 1.3em;
+            font-weight: 600;
+            margin: 25px 0 15px;
+            color: #24292e;
+        }
+        
+        img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .logo {
+            margin: 20px 0;
+        }
+        
+        .description {
+            font-size: 1.2em;
+            color: #586069;
+            margin-bottom: 30px;
+        }
+        
+        .video-section {
+            margin: 30px 0;
+            padding: 20px;
+            background: #f6f8fa;
+            border-radius: 8px;
+        }
+        
+        .video-section video {
+            width: 100%;
+            max-width: 800px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        .video-link {
+            display: inline-block;
+            margin-top: 15px;
+            padding: 10px 20px;
+            background: #0366d6;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+        
+        .video-link:hover {
+            background: #0256b9;
+        }
+        
+        ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        ul li {
+            padding: 8px 0;
+            padding-left: 24px;
+            position: relative;
+        }
+        
+        ul li::before {
+            content: "•";
+            color: #0366d6;
+            font-weight: bold;
+            position: absolute;
+            left: 0;
+        }
+        
+        .tech-stack {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 20px 0;
+        }
+        
+        .tech-tag {
+            display: inline-block;
+            padding: 6px 14px;
+            background: #f1f8ff;
+            color: #0366d6;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: 500;
+        }
+        
+        code {
+            background: #f6f8fa;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 0.9em;
+            color: #d73a49;
+        }
+        
+        pre {
+            background: #f6f8fa;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 15px 0;
+            border: 1px solid #e1e4e8;
+        }
+        
+        pre code {
+            background: none;
+            padding: 0;
+            color: #24292e;
+        }
+        
+        .bash-command {
+            color: #22863a;
+        }
+        
+        .env-var {
+            color: #6f42c1;
+        }
+        
+        .endpoint {
+            display: block;
+            padding: 10px 15px;
+            background: #f6f8fa;
+            border-left: 3px solid #0366d6;
+            margin: 8px 0;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 0.9em;
+        }
+        
+        .endpoint-desc {
+            color: #586069;
+            font-size: 0.85em;
+            margin-top: 4px;
+        }
+        
+        .api-section {
+            margin: 30px 0;
+        }
+        
+        .api-section h3 {
+            margin-top: 0;
+        }
+        
+        .project-structure {
+            background: #f6f8fa;
+            padding: 25px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 0.9em;
+            line-height: 1.8;
+        }
+        
+        .folder {
+            color: #6f42c1;
+            font-weight: 600;
+        }
+        
+        .file {
+            color: #22863a;
+        }
+        
+        .comment {
+            color: #6a737d;
+        }
+        
+        .step {
+            display: flex;
+            align-items: flex-start;
+            margin: 20px 0;
+        }
+        
+        .step-number {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            background: #0366d6;
+            color: white;
+            border-radius: 50%;
+            font-weight: 600;
+            margin-right: 15px;
+            flex-shrink: 0;
+        }
+        
+        .step-content {
+            flex: 1;
+            padding-top: 4px;
+        }
+        
+        .step-title {
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        
+        .interface-preview {
+            margin: 20px 0;
+        }
+        
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2em;
+            }
+            
+            h2 {
+                font-size: 1.5em;
+            }
+            
+            body {
+                padding: 20px 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Meetup Organizing Information System</h1>
+    
+    <div class="logo">
+        <img src="minimax.jpg" alt="MiniMax Logo">
+    </div>
+    
+    <p class="description">
+        A FastAPI-based meetup organizing system with HTMX-powered frontend, agentic workflows for venue and speaker research, and integrations with Meetup and Luma.
+    </p>
+    
+    <div class="video-section">
+        <video controls width="100%">
+            <source src="Screencast from 2026-01-30 14-49-12.webm" type="video/webm">
+            Your browser does not support the video tag.
+        </video>
+        <a href="Screencast from 2026-01-30 14-49-12.webm" class="video-link" target="_blank">▶️ Watch Full Video</a>
+    </div>
+    
+    <h2>Features</h2>
+    
+    <div class="interface-preview">
+        <img src="v0_interface.png" alt="Interface Preview">
+    </div>
+    
+    <ul>
+        <li><strong>Event Management</strong>: Create, organize, and track meetup events</li>
+        <li><strong>Topic Recommendations</strong>: AI-powered topic suggestions based on historical events</li>
+        <li><strong>Kanban Planning</strong>: Visual task management for event planning</li>
+        <li><strong>Agentic Workflows</strong>: AI agents for venue and speaker research using Perplexity and MiniMax</li>
+        <li><strong>Marketing Materials</strong>: Auto-generate marketing copy for events</li>
+        <li><strong>Sponsor Management</strong>: Track and manage event sponsors</li>
+        <li><strong>Permission Management</strong>: Role-based access control for organizers</li>
+    </ul>
+    
+    <h2>Tech Stack</h2>
+    
+    <div class="tech-stack">
+        <span class="tech-tag">FastAPI</span>
+        <span class="tech-tag">SQLAlchemy</span>
+        <span class="tech-tag">SQLite</span>
+        <span class="tech-tag">HTMX</span>
+        <span class="tech-tag">JWT</span>
+        <span class="tech-tag">OpenAI API</span>
+        <span class="tech-tag">MiniMax</span>
+        <span class="tech-tag">Perplexity</span>
+    </div>
+    
+    <ul>
+        <li><strong>Backend</strong>: FastAPI with SQLAlchemy async</li>
+        <li><strong>Database</strong>: SQLite with 4NF schema</li>
+        <li><strong>Frontend</strong>: Minimal HTML/CSS with HTMX</li>
+        <li><strong>Authentication</strong>: JWT-based with role permissions</li>
+        <li><strong>AI Integration</strong>: OpenAI-compatible API (MiniMax), Perplexity Search</li>
+    </ul>
+    
+    <h2>Setup</h2>
+    
+    <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-content">
+            <div class="step-title">Install dependencies</div>
+            <pre><code class="bash-command">pip install -r requirements.txt</code></pre>
+        </div>
+    </div>
+    
+    <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-content">
+            <div class="step-title">Configure environment variables in <code>.env</code></div>
+            <pre><code><span class="env-var">MEETUP_API_KEY</span>=your_meetup_api_key
+<span class="env-var">LUMA_API_KEY</span>=your_luma_api_key
+<span class="env-var">MINIMAX_API_KEY</span>=your_minimax_api_key
+<span class="env-var">PERPLEXITY_API_KEY</span>=your_perplexity_api_key
+<span class="env-var">JWT_SECRET_KEY</span>=your_jwt_secret
+<span class="env-var">DATABASE_PATH</span>=data/meetup.db</code></pre>
+        </div>
+    </div>
+    
+    <div class="step">
+        <div class="step-number">3</div>
+        <div class="step-content">
+            <div class="step-title">Initialize database</div>
+            <pre><code class="bash-command">python -m app.database.connection</code></pre>
+        </div>
+    </div>
+    
+    <div class="step">
+        <div class="step-number">4</div>
+        <div class="step-content">
+            <div class="step-title">Run the application</div>
+            <pre><code class="bash-command">uvicorn app.main:app --reload</code></pre>
+        </div>
+    </div>
+    
+    <h2>API Endpoints</h2>
+    
+    <div class="api-section">
+        <h3>Authentication</h3>
+        <span class="endpoint"><code>POST /auth/register</code> <span class="endpoint-desc">- User registration</span></span>
+        <span class="endpoint"><code>POST /auth/login</code> <span class="endpoint-desc">- JWT token generation</span></span>
+        <span class="endpoint"><code>POST /auth/logout</code> <span class="endpoint-desc">- Token blacklisting</span></span>
+        <span class="endpoint"><code>GET /auth/me</code> <span class="endpoint-desc">- Current user info</span></span>
+    </div>
+    
+    <div class="api-section">
+        <h3>Events</h3>
+        <span class="endpoint"><code>GET /events</code> <span class="endpoint-desc">- List all events</span></span>
+        <span class="endpoint"><code>POST /events</code> <span class="endpoint-desc">- Create event</span></span>
+        <span class="endpoint"><code>GET /events/{id}</code> <span class="endpoint-desc">- Event details</span></span>
+        <span class="endpoint"><code>PUT /events/{id}</code> <span class="endpoint-desc">- Update event</span></span>
+        <span class="endpoint"><code>DELETE /events/{id}</code> <span class="endpoint-desc">- Delete event</span></span>
+        <span class="endpoint"><code>GET /events/{id}/recommendations</code> <span class="endpoint-desc">- Topic recommendations</span></span>
+        <span class="endpoint"><code>POST /events/{id}/meetup</code> <span class="endpoint-desc">- Push to Meetup</span></span>
+        <span class="endpoint"><code>POST /events/{id}/luma</code> <span class="endpoint-desc">- Push to Luma</span></span>
+    </div>
+    
+    <div class="api-section">
+        <h3>Kanban</h3>
+        <span class="endpoint"><code>GET /kanban/{event_id}</code> <span class="endpoint-desc">- Get all tasks</span></span>
+        <span class="endpoint"><code>POST /kanban/tasks</code> <span class="endpoint-desc">- Create task</span></span>
+        <span class="endpoint"><code>PATCH /kanban/tasks/{id}</code> <span class="endpoint-desc">- Update task status</span></span>
+        <span class="endpoint"><code>PUT /kanban/tasks/{id}</code> <span class="endpoint-desc">- Edit task</span></span>
+    </div>
+    
+    <div class="api-section">
+        <h3>Venues</h3>
+        <span class="endpoint"><code>GET /venues</code> <span class="endpoint-desc">- List venues</span></span>
+        <span class="endpoint"><code>POST /venues</code> <span class="endpoint-desc">- Add venue</span></span>
+        <span class="endpoint"><code>POST /venues/research</code> <span class="endpoint-desc">- Trigger venue research agent</span></span>
+        <span class="endpoint"><code>GET /venues/{id}</code> <span class="endpoint-desc">- Venue details</span></span>
+    </div>
+    
+    <div class="api-section">
+        <h3>Speakers</h3>
+        <span class="endpoint"><code>GET /speakers</code> <span class="endpoint-desc">- List speakers</span></span>
+        <span class="endpoint"><code>POST /speakers/research</code> <span class="endpoint-desc">- Trigger speaker research agent</span></span>
+        <span class="endpoint"><code>POST /speakers/enrich</code> <span class="endpoint-desc">- Enrich attendee data</span></span>
+        <span class="endpoint"><code>GET /speakers/{id}</code> <span class="endpoint-desc">- Speaker details</span></span>
+    </div>
+    
+    <div class="api-section">
+        <h3>Marketing</h3>
+        <span class="endpoint"><code>GET /marketing/{event_id}</code> <span class="endpoint-desc">- Get materials</span></span>
+        <span class="endpoint"><code>POST /marketing/{event_id}/generate</code> <span class="endpoint-desc">- Generate marketing copy</span></span>
+        <span class="endpoint"><code>PUT /marketing/{material_id}</code> <span class="endpoint-desc">- Edit material</span></span>
+    </div>
+    
+    <div class="api-section">
+        <h3>Sponsors</h3>
+        <span class="endpoint"><code>GET /sponsors</code> <span class="endpoint-desc">- List all sponsors</span></span>
+        <span class="endpoint"><code>POST /sponsors</code> <span class="endpoint-desc">- Create sponsor</span></span>
+        <span class="endpoint"><code>GET /sponsors/{id}</code> <span class="endpoint-desc">- Sponsor details</span></span>
+        <span class="endpoint"><code>PUT /sponsors/{id}</code> <span class="endpoint-desc">- Update sponsor</span></span>
+        <span class="endpoint"><code>DELETE /sponsors/{id}</code> <span class="endpoint-desc">- Delete sponsor</span></span>
+        <span class="endpoint"><code>POST /events/{event_id}/sponsors/{sponsor_id}</code> <span class="endpoint-desc">- Link sponsor</span></span>
+        <span class="endpoint"><code>DELETE /events/{event_id}/sponsors/{sponsor_id}</code> <span class="endpoint-desc">- Unlink sponsor</span></span>
+    </div>
+    
+    <div class="api-section">
+        <h3>Admin</h3>
+        <span class="endpoint"><code>GET /admin/users</code> <span class="endpoint-desc">- List all users</span></span>
+        <span class="endpoint"><code>GET /admin/users/{id}</code> <span class="endpoint-desc">- User details</span></span>
+        <span class="endpoint"><code>PUT /admin/users/{id}/permissions</code> <span class="endpoint-desc">- Update user role</span></span>
+        <span class="endpoint"><code>DELETE /admin/users/{id}</code> <span class="endpoint-desc">- Deactivate user</span></span>
+    </div>
+    
+    <h2>Project Structure</h2>
+    
+    <div class="project-structure">
+        <pre><span class="comment">cursor_hackathon_26/</span>
+├── <span class="folder">app/</span>
+│   ├── <span class="file">__init__.py</span>
+│   ├── <span class="file">main.py</span>                    <span class="comment"># FastAPI application entry point</span>
+│   ├── <span class="file">config.py</span>                  <span class="comment"># Configuration and API placeholders</span>
+│   ├── <span class="folder">database/</span>
+│   │   ├── <span class="file">__init__.py</span>
+│   │   ├── <span class="file">connection.py</span>          <span class="comment"># SQLite connection management</span>
+│   │   └── <span class="file">schemas.py</span>             <span class="comment"># SQLAlchemy/Pydantic schemas</span>
+│   ├── <span class="folder">models/</span>
+│   │   ├── <span class="file">__init__.py</span>
+│   │   └── <span class="file">database_models.py</span>     <span class="comment"># SQLAlchemy ORM models</span>
+│   ├── <span class="folder">auth/</span>
+│   │   ├── <span class="file">__init__.py</span>
+│   │   ├── <span class="file">router.py</span>              <span class="comment"># Auth endpoints (login, register)</span>
+│   │   ├── <span class="file">dependencies.py</span>        <span class="comment"># Auth dependencies and guards</span>
+│   │   └── <span class="file">utils.py</span>               <span class="comment"># Password hashing, JWT handling</span>
+│   ├── <span class="folder">routers/</span>
+│   │   ├── <span class="file">__init__.py</span>
+│   │   ├── <span class="file">events.py</span>              <span class="comment"># Event CRUD and topic recommendations</span>
+│   │   ├── <span class="file">venues.py</span>              <span class="comment"># Venue management and research</span>
+│   │   ├── <span class="file">speakers.py</span>            <span class="comment"># Speaker research and attendee enrichment</span>
+│   │   ├── <span class="file">marketing.py</span>           <span class="comment"># Marketing material generation</span>
+│   │   ├── <span class="file">kanban.py</span>              <span class="comment"># Kanban board operations</span>
+│   │   ├── <span class="file">sponsors.py</span>            <span class="comment"># Sponsor management</span>
+│   │   └── <span class="file">admin.py</span>               <span class="comment"># Permission management</span>
+│   ├── <span class="folder">agents/</span>
+│   │   ├── <span class="file">__init__.py</span>
+│   │   ├── <span class="file">base_agent.py</span>          <span class="comment"># Base agent class with tool calling</span>
+│   │   ├── <span class="file">venue_research.py</span>      <span class="comment"># Venue research agent (Perplexity + MiniMax)</span>
+│   │   └── <span class="file">speaker_research.py</span>    <span class="comment"># Speaker research agent</span>
+│   ├── <span class="folder">services/</span>
+│   │   ├── <span class="file">__init__.py</span>
+│   │   ├── <span class="file">topic_recommender.py</span>   <span class="comment"># Historical event-based recommendations</span>
+│   │   ├── <span class="file">meetup_service.py</span>      <span class="comment"># Meetup API integration</span>
+│   │   └── <span class="file">luma_service.py</span>        <span class="comment"># Luma API integration</span>
+│   └── <span class="folder">templates/</span>
+│       ├── <span class="file">base.html</span>              <span class="comment"># Base HTML template</span>
+│       ├── <span class="file">auth.html</span>              <span class="comment"># Login/register forms</span>
+│       ├── <span class="file">dashboard.html</span>         <span class="comment"># Main dashboard with kanban</span>
+│       ├── <span class="file">events.html</span>            <span class="comment"># Event management</span>
+│       ├── <span class="file">venues.html</span>            <span class="comment"># Venue research interface</span>
+│       └── <span class="file">marketing.html</span>         <span class="comment"># Marketing material editor</span>
+├── <span class="folder">static/</span>
+│   ├── <span class="file">style.css</span>                  <span class="comment"># Minimal CSS framework</span>
+│   └── <span class="file">htmx.min.js</span>                <span class="comment"># HTMX library</span>
+├── <span class="folder">planning/</span>
+│   └── <span class="file">planning_prompt.md</span>         <span class="comment"># This planning document</span>
+└── <span class="file">requirements.txt</span>               <span class="comment"># Python dependencies</span></pre>
+    </div>
+</body>
+</html>
