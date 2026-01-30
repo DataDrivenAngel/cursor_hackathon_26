@@ -4,6 +4,8 @@ A FastAPI-based meetup organizing system with HTMX-powered frontend, agentic wor
 
 ## Features
 
+![Interface Preview](v0_interface.png)
+
 - **Event Management**: Create, organize, and track meetup events
 - **Topic Recommendations**: AI-powered topic suggestions based on historical events
 - **Kanban Planning**: Visual task management for event planning
