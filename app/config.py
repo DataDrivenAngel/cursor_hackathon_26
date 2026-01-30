@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     LUMA_API_KEY: str = ""
     MINIMAX_API_KEY: str = ""
     PERPLEXITY_API_KEY: str = ""
+    JIGSAWSTACK_API_KEY: str = ""
+    REPLICATE_API_KEY: str = ""
     
     # JWT Configuration
     JWT_SECRET_KEY: str = "your-secret-key-change-in-production"

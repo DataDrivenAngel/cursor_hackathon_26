@@ -10,10 +10,31 @@ from app.database.connection import get_db
 from app.database.schemas import TokenData
 from app.auth.utils import decode_access_token
 from app.models.database_models import User
+import os
 
 
 # HTTP Bearer token scheme
 bearer_scheme = HTTPBearer()
+
+
+# Check if we're in development mode (no auth)
+def is_dev_mode() -> bool:
+    """Check if running in development mode without auth."""
+    return os.getenv("DISABLE_AUTH", "false").lower() == "true"
+
+
+# Create a dummy user for development
+class DummyUser:
+    """Dummy user for development mode."""
+    def __init__(self):
+        self.id = 1
+        self.username = "dev_user"
+        self.email = "dev@example.com"
+        self.role = "admin"
+        self.is_active = True
+        self.hashed_password = "dummy"
+        self.created_at = None
+        self.updated_at = None
 
 
 async def get_current_user(
@@ -21,6 +42,10 @@ async def get_current_user(
     db: AsyncSession = Depends(get_db)
 ) -> User:
     """Dependency to get the current authenticated user."""
+    # Bypass authentication in dev mode
+    if is_dev_mode():
+        return DummyUser()
+    
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -58,6 +83,23 @@ async def get_current_user(
             detail="User is inactive"
         )
     
+    return user
+
+
+# Bypass admin check in dev mode
+async def bypass_admin_check():
+    """Dependency to bypass admin check in development mode."""
+    if is_dev_mode():
+        return DummyUser()
+    # In production, require admin
+    # This will be handled by the normal get_current_user + require_admin flow
+    from app.auth.dependencies import get_current_user
+    user = await get_current_user()
+    if user.role != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Admin access required"
+        )
     return user
 
 

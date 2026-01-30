@@ -1,5 +1,5 @@
 """
-Venue research agent - searches for venues using Perplexity and local database.
+Venue research agent - searches for venues using JigsawStack and local database.
 """
 import httpx
 import json
@@ -32,12 +32,13 @@ class VenueResearchAgent(BaseAgent):
                 }
             ),
             Tool(
-                name="perplexity_search",
-                description="Search the web for venues using Perplexity API",
+                name="jigsawstack_search",
+                description="Search the web for venues using JigsawStack AI Scrape",
                 parameters={
                     "type": "object",
                     "properties": {
-                        "query": {"type": "string", "description": "Search query for venues"}
+                        "url": {"type": "string", "description": "URL to scrape for venue information"},
+                        "element_prompts": {"type": "array", "items": {"type": "string"}, "description": "Prompts to extract venue details"}
                     }
                 }
             ),
@@ -88,7 +89,7 @@ async def research_venues(
     
     This function:
     1. Searches existing venues in the database
-    2. Uses Perplexity to find additional venues if needed
+    2. Uses JigsawStack to find additional venues if needed
     3. Returns research results with recommendations
     """
     results = {
@@ -108,8 +109,8 @@ async def research_venues(
         results["existing_venues"] = existing
     
     # If we don't have enough venues, search the web
-    if len(results["existing_venues"]) < 3 and settings.PERPLEXITY_API_KEY:
-        new_venues = await perplexity_search_venues(
+    if len(results["existing_venues"]) < 3 and settings.JIGSAWSTACK_API_KEY:
+        new_venues = await jigsawstack_search_venues(
             capacity=capacity,
             location=location,
             event_type=event_type,
@@ -137,72 +138,104 @@ async def search_local_venues(
     return []
 
 
-async def perplexity_search_venues(
+async def jigsawstack_search_venues(
     capacity: Optional[int] = None,
     location: str = None,
     event_type: str = None,
     amenities: List[str] = None
 ) -> List[Dict[str, Any]]:
-    """Search for venues using Perplexity API."""
-    if not settings.PERPLEXITY_API_KEY:
+    """Search for venues using JigsawStack AI Scrape."""
+    if not settings.JIGSAWSTACK_API_KEY:
         return []
     
-    # Build search query
-    query_parts = []
-    if event_type:
-        query_parts.append(f"{event_type} event")
-    query_parts.append(f"venue in {location}")
-    if capacity:
-        query_parts.append(f"capacity {capacity}+")
-    if amenities:
-        query_parts.append(f"amenities: {', '.join(amenities)}")
-    
-    query = " ".join(query_parts)
-    
-    headers = {
-        "Authorization": f"Bearer {settings.PERPLEXITY_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    
-    payload = {
-        "model": "sonar",
-        "messages": [
-            {
-                "role": "user",
-                "content": f"Find venues for {query}. Return results as JSON array with: name, address, city, capacity, amenities, website, contact_email, pricing"
-            }
+    try:
+        # Import JigsawStack
+        from jigsawstack import JigsawStack
+        
+        # Initialize JigsawStack client
+        jigsaw = JigsawStack(api_key=settings.JIGSAWSTACK_API_KEY)
+        
+        # Build a search query URL for venue listing websites
+        # We'll search for venues in the specified location
+        search_query = f"{event_type or 'event'} venues in {location}"
+        search_url = f"https://www.google.com/search?q={search_query.replace(' ', '+')}"
+        
+        # Define element prompts to extract venue information
+        element_prompts = [
+            "venue name",
+            "venue address",
+            "venue capacity", 
+            "venue amenities",
+            "venue contact email",
+            "venue website"
         ]
-    }
-    
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            "https://api.perplexity.ai/chat/completions",
-            json=payload,
-            headers=headers,
-            timeout=60.0
-        )
         
-        if response.status_code == 200:
-            data = response.json()
-            content = data["choices"][0]["message"]["content"]
-            # Parse JSON from response
-            try:
-                # Try to extract JSON from the response
-                if "```json" in content:
-                    content = content.split("```json")[1].split("```")[0]
-                elif "```" in content:
-                    content = content.split("```")[1].split("```")[0]
-                
-                venues = json.loads(content)
-                if isinstance(venues, list):
-                    return venues
-                elif isinstance(venues, dict) and "venues" in venues:
-                    return venues["venues"]
-            except json.JSONDecodeError:
-                # If parsing fails, return empty list
-                return []
+        # Use JigsawStack AI Scrape to extract venue information
+        response = jigsaw.web.ai_scrape({
+            "url": search_url,
+            "element_prompts": element_prompts
+        })
+        
+        if response.get("success"):
+            # Parse the extracted data
+            extracted_data = response.get("data", {})
+            venues = parse_jigsawstack_venues(extracted_data, location)
+            return venues
         
         return []
+        
+    except ImportError:
+        # If jigsawstack is not installed, return empty list
+        print("JigsawStack package not installed. Run: pip install jigsawstack")
+        return []
+    except Exception as e:
+        print(f"Error searching venues with JigsawStack: {e}")
+        return []
+
+
+def parse_jigsawstack_venues(
+    extracted_data: Dict[str, Any],
+    location: str
+) -> List[Dict[str, Any]]:
+    """Parse venues from JigsawStack extraction results."""
+    venues = []
+    
+    # The response structure depends on what JigsawStack returns
+    # This is a simplified parser - adjust based on actual response format
+    if isinstance(extracted_data, dict):
+        # Try to extract venues from the response
+        for key, value in extracted_data.items():
+            if isinstance(value, dict):
+                venue = {
+                    "name": value.get("venue name", ""),
+                    "address": value.get("venue address", ""),
+                    "city": location,
+                    "capacity": value.get("venue capacity", 0),
+                    "amenities": value.get("venue amenities", []),
+                    "website": value.get("venue website", ""),
+                    "contact_email": value.get("venue contact email", ""),
+                    "research_data": value
+                }
+                if venue.get("name"):
+                    venues.append(venue)
+            elif isinstance(value, list):
+                # Maybe the venues are in a list
+                for item in value:
+                    if isinstance(item, dict):
+                        venue = {
+                            "name": item.get("venue name", "") or item.get("name", ""),
+                            "address": item.get("venue address", "") or item.get("address", ""),
+                            "city": location,
+                            "capacity": item.get("venue capacity", 0) or item.get("capacity", 0),
+                            "amenities": item.get("venue amenities", []) or item.get("amenities", []),
+                            "website": item.get("venue website", "") or item.get("website", ""),
+                            "contact_email": item.get("venue contact email", "") or item.get("contact_email", ""),
+                            "research_data": item
+                        }
+                        if venue.get("name"):
+                            venues.append(venue)
+    
+    return venues
 
 
 def generate_venue_recommendations(

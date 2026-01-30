@@ -5,6 +5,7 @@ import httpx
 import json
 from typing import Optional, List, Dict, Any
 from app.config import settings
+from app.agents.base_agent import BaseAgent, Tool
 
 
 class SpeakerResearchAgent(BaseAgent):

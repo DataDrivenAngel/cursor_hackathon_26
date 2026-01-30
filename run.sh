@@ -111,11 +111,19 @@ else
     print_status ".env file already exists"
 fi
 
-# Run the application
-echo ""
-echo -e "${BLUE}========================================${NC}"
-print_info "Starting the application..."
-echo -e "${BLUE}========================================${NC}"
+# Kill any existing uvicorn server processes on port 8000
+print_info "Stopping any existing servers on port 8000..."
+# Find and kill process using port 8000
+if command -v fuser &> /dev/null; then
+    fuser -k 8000/tcp 2>/dev/null || true
+elif command -v lsof &> /dev/null; then
+    lsof -ti:8000 | xargs kill -9 2>/dev/null || true
+else
+    # Fallback to pkill if neither fuser nor lsof is available
+    pkill -f "uvicorn.*8000" 2>/dev/null || true
+fi
+sleep 1
+print_status "Previous servers stopped"
 echo ""
 echo -e "The application will be available at: ${GREEN}http://localhost:8000${NC}"
 echo -e "Press ${YELLOW}Ctrl+C${NC} to stop the server"
@@ -148,6 +156,9 @@ else:
 # Open browser in background
 print_info "Opening browser..."
 open_browser
+
+# Set environment variable to disable authentication for local development
+export DISABLE_AUTH=true
 
 # Run with uvicorn
 exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload

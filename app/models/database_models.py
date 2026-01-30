@@ -3,7 +3,7 @@ SQLAlchemy database models for the Meetup Organizing Information Support System.
 Designed in 4th Normal Form with history tracking.
 """
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, JSON
+from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, JSON, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.database.connection import Base
 
@@ -27,8 +27,8 @@ class User(Base):
     tasks_created = relationship("Task", back_populates="creator", foreign_keys="Task.created_by")
     agent_workflows = relationship("AgentWorkflow", back_populates="user")
     marketing_materials = relationship("MarketingMaterial", back_populates="creator")
-    permissions_granted = relationship("Permission", back_populates="granted_by_user", foreign_keys="Permission.granted_by")
-    permissions = relationship("Permission", back_populates="user")
+    permissions_granted = relationship("Permission", back_populates="granted_by_user", foreign_keys="[Permission.granted_by]")
+    permissions = relationship("Permission", back_populates="user", foreign_keys="[Permission.user_id]")
     venues = relationship("Venue", back_populates="creator")
     sponsors = relationship("Sponsor", back_populates="creator")
     speakers = relationship("Speaker", back_populates="creator")
@@ -45,6 +45,7 @@ class Event(Base):
     status = Column(String(20), default="planning")  # planning, scheduled, completed, cancelled
     meetup_id = Column(String(100))
     luma_id = Column(String(100))
+    image_url = Column(String(500))  # AI-generated event image
     scheduled_date = Column(DateTime)
     venue_id = Column(Integer, ForeignKey("venues.id"), nullable=True)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
@@ -240,8 +241,8 @@ class Permission(Base):
     granted_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationships
-    user = relationship("Permission", back_populates="user", foreign_keys=[user_id])
-    granted_by_user = relationship("Permission", back_populates="permissions_granted", foreign_keys=[granted_by])
+    user = relationship("User", back_populates="permissions", foreign_keys=[user_id])
+    granted_by_user = relationship("User", back_populates="permissions_granted", foreign_keys=[granted_by])
 
 
 class AttendeeProfile(Base):
@@ -287,6 +288,3 @@ class EventAttendee(Base):
         UniqueConstraint("event_id", "attendee_profile_id", name="uq_event_attendee"),
     )
 
-
-# Import for SQLAlchemy constraints
-from sqlalchemy import UniqueConstraint

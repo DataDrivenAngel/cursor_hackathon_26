@@ -49,6 +49,7 @@ class EventCreate(EventBase):
     """Schema for creating an event."""
     scheduled_date: Optional[datetime] = None
     venue_id: Optional[int] = None
+    generate_image: bool = False  # Option to auto-generate event image
 
 
 class EventUpdate(BaseModel):
@@ -67,6 +68,7 @@ class EventResponse(EventBase):
     """Schema for event response."""
     id: int
     status: str
+    image_url: Optional[str]
     scheduled_date: Optional[datetime]
     venue_id: Optional[int]
     meetup_id: Optional[str]

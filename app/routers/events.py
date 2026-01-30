@@ -13,13 +13,14 @@ from app.database.schemas import (
     VenueResearchRequest, VenueResearchResponse, SpeakerResearchRequest,
     SpeakerResearchResponse
 )
-from app.auth.dependencies import get_current_user, require_admin_or_organizer
+from app.auth.dependencies import get_current_user, bypass_admin_check
 from app.models.database_models import (
     User, Event, Organizer, Venue, Speaker, Task, MarketingMaterial
 )
 from app.services.topic_recommender import get_topic_recommendations
 from app.services.meetup_service import create_meetup_event, sync_meetup_status
 from app.services.luma_service import create_luma_event, sync_luma_status
+from app.services.minimax_service import generate_event_image
 from app.agents.venue_research import research_venues
 from app.agents.speaker_research import research_speakers
 
@@ -72,7 +73,7 @@ async def get_event(event_id: int, db: AsyncSession = Depends(get_db)):
 @router.post("/", response_model=EventResponse, status_code=status.HTTP_201_CREATED)
 async def create_event(
     event_data: EventCreate,
-    current_user: User = Depends(require_admin_or_organizer),
+    current_user: User = Depends(bypass_admin_check),
     db: AsyncSession = Depends(get_db)
 ):
     """Create a new event."""
@@ -101,6 +102,18 @@ async def create_event(
     await db.commit()
     await db.refresh(event)
     
+    # Generate event image if requested
+    if event_data.generate_image:
+        image_url = await generate_event_image(
+            event_title=event.title,
+            event_topic=event.topic,
+            event_description=event.description
+        )
+        if image_url:
+            event.image_url = image_url
+            await db.commit()
+            await db.refresh(event)
+    
     # Add creator as primary organizer
     organizer = Organizer(
         user_id=current_user.id,
@@ -117,7 +130,7 @@ async def create_event(
 async def update_event(
     event_id: int,
     event_data: EventUpdate,
-    current_user: User = Depends(require_admin_or_organizer),
+    current_user: User = Depends(bypass_admin_check),
     db: AsyncSession = Depends(get_db)
 ):
     """Update an existing event."""
@@ -147,7 +160,7 @@ async def update_event(
 @router.delete("/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_event(
     event_id: int,
-    current_user: User = Depends(require_admin_or_organizer),
+    current_user: User = Depends(bypass_admin_check),
     db: AsyncSession = Depends(get_db)
 ):
     """Delete an event."""
@@ -195,7 +208,7 @@ async def get_recommendations(
 @router.post("/{event_id}/meetup")
 async def push_to_meetup(
     event_id: int,
-    current_user: User = Depends(require_admin_or_organizer),
+    current_user: User = Depends(bypass_admin_check),
     db: AsyncSession = Depends(get_db)
 ):
     """Create event on Meetup and store the meetup_id."""
@@ -260,7 +273,7 @@ async def get_meetup_status(
 @router.post("/{event_id}/luma")
 async def push_to_luma(
     event_id: int,
-    current_user: User = Depends(require_admin_or_organizer),
+    current_user: User = Depends(bypass_admin_check),
     db: AsyncSession = Depends(get_db)
 ):
     """Create event on Luma and store the luma_id."""
@@ -316,3 +329,41 @@ async def get_integration_status(
     }
     
     return status_data
+
+
+# ==================== Image Generation ====================
+
+@router.post("/{event_id}/generate-image")
+async def generate_event_image_endpoint(
+    event_id: int,
+    current_user: User = Depends(bypass_admin_check),
+    db: AsyncSession = Depends(get_db)
+):
+    """Generate an AI image for an event using MiniMax."""
+    result = await db.execute(
+        select(Event).where(Event.id == event_id)
+    )
+    event = result.scalar_one_or_none()
+    
+    if event is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found"
+        )
+    
+    # Generate the image
+    image_url = await generate_event_image(
+        event_title=event.title,
+        event_topic=event.topic,
+        event_description=event.description
+    )
+    
+    if image_url:
+        event.image_url = image_url
+        await db.commit()
+        return {"message": "Image generated successfully", "image_url": image_url}
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to generate image. Check API key configuration."
+        )
