@@ -39,7 +39,7 @@ while [[ $# -gt 0 ]]; do
         -s|--setup)
             RUN_SETUP=true
             RUN_SERVER=true
-            RUN_FRONTEND=false
+            RUN_FRONTEND=true
             shift
             ;;
         --no-populate)
@@ -357,7 +357,7 @@ else:
 # Function to run the FastAPI backend
 run_backend() {
     # Activate virtual environment if not already activated
-    if [ -z "\$VIRTUAL_ENV" ]; then
+    if [ -z "$VIRTUAL_ENV" ]; then
         source "$VENV_DIR/bin/activate"
     fi
     cd "$PROJECT_ROOT"
@@ -367,9 +367,9 @@ run_backend() {
     
     # Set Replicate API token from .env if available
     if [ -f "$ENV_FILE" ]; then
-        REPLICATE_TOKEN=\$(grep "^REPLICATE_API_TOKEN=" "$ENV_FILE" | cut -d'=' -f2 | tr -d '"' | tr -d "'")
-        if [ -n "\$REPLICATE_TOKEN" ]; then
-            export REPLICATE_API_TOKEN="\$REPLICATE_TOKEN"
+        REPLICATE_TOKEN=$(grep "^REPLICATE_API_TOKEN=" "$ENV_FILE" | cut -d'=' -f2 | tr -d '"' | tr -d "'")
+        if [ -n "$REPLICATE_TOKEN" ]; then
+            export REPLICATE_API_TOKEN="$REPLICATE_TOKEN"
         fi
     fi
     
@@ -394,47 +394,42 @@ run_frontend() {
 
 # Run both servers
 if [ "$RUN_SERVER" = true ]; then
-    # Start backend server in background
-    print_info "Starting FastAPI backend server on port 8000..."
-    run_backend &
-    BACKEND_PID=$!
-    print_status "Backend server started (PID: $BACKEND_PID)"
-    
-    # Wait for backend to be ready
-    print_info "Waiting for backend server to be ready..."
-    for i in {1..30}; do
-        if curl -s http://localhost:8000/health > /dev/null 2>&1; then
-            print_status "Backend server is ready!"
-            break
+    if [ "$RUN_FRONTEND" = true ]; then
+        # Start backend server in background when frontend will also run
+        print_info "Starting FastAPI backend server on port 8000..."
+        run_backend &
+        BACKEND_PID=$!
+        print_status "Backend server started (PID: $BACKEND_PID)"
+        
+        # Wait for backend to be ready
+        print_info "Waiting for backend server to be ready..."
+        for i in {1..30}; do
+            if curl -s http://localhost:8000/health > /dev/null 2>&1; then
+                print_status "Backend server is ready!"
+                break
+            fi
+            sleep 1
+        done
+        
+        if ! curl -s http://localhost:8000/health > /dev/null 2>&1; then
+            print_warning "Backend server may not be ready yet, continuing..."
         fi
-        sleep 1
-    done
-    
-    if ! curl -s http://localhost:8000/health > /dev/null 2>&1; then
-        print_warning "Backend server may not be ready yet, continuing..."
-    fi
-fi
-
-if [ "$RUN_FRONTEND" = true ]; then
-    echo ""
-    echo -e "FastAPI backend:  ${GREEN}http://localhost:8000${NC}"
-    echo -e "Frontend:        ${GREEN}http://localhost:3000${NC}"
-    echo ""
-    
-    # Open browser in background
-    print_info "Opening browser..."
-    open_browser
-    
-    # Run frontend server
-    run_frontend
-else
-    echo ""
-    echo -e "FastAPI backend is running at: ${GREEN}http://localhost:8000${NC}"
-    echo -e "Press ${YELLOW}Ctrl+C${NC} to stop the server"
-    echo ""
-    
-    # If only backend, run it in foreground
-    if [ "$RUN_SERVER" = true ]; then
+        
+        echo ""
+        echo -e "FastAPI backend:  ${GREEN}http://localhost:8000${NC}"
+        echo -e "Frontend:        ${GREEN}http://localhost:3000${NC}"
+        echo ""
+        
+        # Open browser in background
+        print_info "Opening browser..."
+        open_browser
+        
+        # Run frontend server (this will replace the process)
+        run_frontend
+    else
+        # When frontend is not running, run backend directly in foreground
+        print_info "Starting FastAPI backend server on port 8000..."
+        
         # Activate virtual environment if not already activated
         if [ -z "$VIRTUAL_ENV" ]; then
             source "$VENV_DIR/bin/activate"
@@ -451,6 +446,11 @@ else
                 export REPLICATE_API_TOKEN="$REPLICATE_TOKEN"
             fi
         fi
+        
+        echo ""
+        echo -e "FastAPI backend is running at: ${GREEN}http://localhost:8000${NC}"
+        echo -e "Press ${YELLOW}Ctrl+C${NC} to stop the server"
+        echo ""
         
         # Run with uvicorn in foreground
         exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
