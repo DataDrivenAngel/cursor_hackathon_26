@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}Venues - Meetup Organizer{% endblock %}
+
+{% block content %}
+<div class="venues-page">
+    <header class="page-header">
+        <h1>Venues</h1>
+        <button class="btn btn-primary" onclick="showAddModal()">Add Venue</button>
+    </header>
+    
+    <!-- Research Section -->
+    <section class="research-section">
+        <h2>Venue Research</h2>
+        <p>Find new venues using AI-powered research</p>
+        
+        <form hx-post="/venues/research" hx-target="#research-results" class="research-form">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="location">Location</label>
+                    <input type="text" id="location" name="location" placeholder="City or region" required>
+                </div>
+                <div class="form-group">
+                    <label for="capacity">Minimum Capacity</label>
+                    <input type="number" id="capacity" name="capacity" placeholder="e.g., 50">
+                </div>
+                <div class="form-group">
+                    <label for="event_type">Event Type</label>
+                    <select id="event_type" name="event_type">
+                        <option value="tech">Tech Meetup</option>
+                        <option value="workshop">Workshop</option>
+                        <option value="conference">Conference</option>
+                        <option value="networking">Networking</option>
+                    </select>
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary" onclick="this.classList.add('loading')">
+                Research Venues
+            </button>
+        </form>
+        
+        <div id="research-results" class="research-results">
+            <!-- Research results will be loaded here -->
+        </div>
+    </section>
+    
+    <!-- Venues List -->
+    <section class="venues-list">
+        <h2>Known Venues</h2>
+        <div class="venues-grid" hx-get="/venues" hx-trigger="load" hx-target="this">
+            {% for venue in venues %}
+            <div class="venue-card">
+                <div class="venue-header">
+                    <h3>{{ venue.name }}</h3>
+                    <span class="venue-city">{{ venue.city }}</span>
+                </div>
+                <p class="venue-address">{{ venue.address }}</p>
+                <div class="venue-meta">
+                    <span class="venue-capacity">Capacity: {{ venue.capacity or "Unknown" }}</span>
+                    {% if venue.amenities %}
+                    <span class="venue-amenities">Amenities available</span>
+                    {% endif %}
+                </div>
+                <div class="venue-actions">
+                    <a href="/venues/{{ venue.id }}" class="btn btn-sm">View Details</a>
+                </div>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <p>No venues added yet. Add your first venue or use AI research.</p>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    
+    <!-- Add Venue Modal -->
+    <dialog id="add-venue-modal">
+        <form hx-post="/venues" hx-target="#venues-grid">
+            <h2>Add New Venue</h2>
+            <div class="form-group">
+                <label for="name">Venue Name</label>
+                <input type="text" id="name" name="name" required>
+            </div>
+            <div class="form-group">
+                <label for="address">Address</label>
+                <input type="text" id="address" name="address" required>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="city">City</label>
+                    <input type="text" id="city" name="city" required>
+                </div>
+                <div class="form-group">
+                    <label for="country">Country</label>
+                    <input type="text" id="country" name="country" required>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="capacity">Capacity</label>
+                <input type="number" id="capacity" name="capacity">
+            </div>
+            <div class="form-group">
+                <label for="website">Website</label>
+                <input type="url" id="website" name="website">
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeAddModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Add Venue</button>
+            </div>
+        </form>
+    </dialog>
+</div>
+
+<script>
+    function showAddModal() {
+        document.getElementById('add-venue-modal').showModal();
+    }
+    
+    function closeAddModal() {
+        document.getElementById('add-venue-modal').close();
+    }
+</script>
+{% endblock %}
