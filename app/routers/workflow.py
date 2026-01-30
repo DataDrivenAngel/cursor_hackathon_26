@@ -61,6 +61,34 @@ async def get_workflow_progress(
     return progress
 
 
+@router.get("/events/{event_id}/workflow/progress/frontend")
+async def get_frontend_workflow_progress(
+    event_id: int,
+    current_user: User = Depends(bypass_admin_check),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get workflow progress formatted for frontend consumption."""
+    
+    service = WorkflowService(db)
+    progress = await service.get_frontend_workflow_progress(event_id)
+    
+    return progress
+
+
+@router.get("/events/{event_id}/workflow/milestones/frontend")
+async def get_frontend_milestones(
+    event_id: int,
+    current_user: User = Depends(bypass_admin_check),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get milestones formatted for frontend consumption."""
+    
+    service = WorkflowService(db)
+    milestones = await service.get_frontend_milestones(event_id)
+    
+    return milestones
+
+
 @router.get("/events/{event_id}/workflow/summary")
 async def get_workflow_summary(
     event_id: int,

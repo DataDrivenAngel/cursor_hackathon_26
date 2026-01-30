@@ -234,6 +234,118 @@ class WorkflowService:
             "warnings": warnings
         }
     
+    async def get_frontend_workflow_progress(self, event_id: int) -> Dict[str, Any]:
+        """Get workflow progress formatted for frontend consumption."""
+        
+        # Get all stages
+        stages_result = await self.db.execute(
+            select(WorkflowStage)
+            .options(selectinload(WorkflowSubtask))
+            .where(WorkflowStage.event_id == event_id)
+            .order_by(WorkflowStage.order)
+        )
+        stages = stages_result.scalars().all()
+        
+        # Get milestones
+        milestones_result = await self.db.execute(
+            select(EventMilestone)
+            .where(EventMilestone.event_id == event_id)
+            .order_by(EventMilestone.due_date)
+        )
+        milestones = milestones_result.scalars().all()
+        
+        # Get event for date calculations
+        event_result = await self.db.execute(
+            select(Event).where(Event.id == event_id)
+        )
+        event = event_result.scalar_one_or_none()
+        
+        now = datetime.utcnow()
+        if event and event.scheduled_date:
+            days_until = (event.scheduled_date - now).days
+        else:
+            days_until = 0
+        
+        # Build phases array for frontend
+        phases = []
+        total_tasks = 0
+        completed_tasks = 0
+        in_progress_tasks = 0
+        blocked_tasks = 0
+        
+        current_phase = self._get_current_phase({s.phase: {"status": s.status, "progress": s.progress} for s in stages})
+        
+        for stage in stages:
+            stage_subtasks = stage.subtasks if stage.subtasks else []
+            total = len(stage_subtasks)
+            completed = sum(1 for s in stage_subtasks if s.status in ["done", "review"])
+            in_progress = sum(1 for s in stage_subtasks if s.status == "in_progress")
+            blocked = sum(1 for s in stage_subtasks if s.status == "blocked")
+            
+            total_tasks += total
+            completed_tasks += completed
+            in_progress_tasks += in_progress
+            blocked_tasks += blocked
+            
+            config = PHASE_CONFIG.get(stage.phase, {})
+            
+            phase_progress = {
+                "phase": stage.phase,
+                "name": config.get("name", stage.phase),
+                "icon": config.get("icon", "📌"),
+                "weight": config.get("weight", 0),
+                "progress": stage.progress,
+                "totalTasks": total,
+                "completedTasks": completed,
+                "isActive": stage.status == "in_progress",
+                "isCompleted": stage.status == "completed",
+                "hasBlockedTasks": blocked > 0
+            }
+            phases.append(phase_progress)
+        
+        # Get overall progress from progress record
+        progress_result = await self.db.execute(
+            select(EventWorkflowProgress)
+            .where(EventWorkflowProgress.event_id == event_id)
+        )
+        progress = progress_result.scalar_one_or_none()
+        overall_progress = progress.completion_percentage if progress else 0
+        
+        return {
+            "eventId": event_id,
+            "overallProgress": overall_progress,
+            "phases": phases,
+            "totalTasks": total_tasks,
+            "completedTasks": completed_tasks,
+            "inProgressTasks": in_progress_tasks,
+            "blockedTasks": blocked_tasks
+        }
+    
+    async def get_frontend_milestones(self, event_id: int) -> List[Dict[str, Any]]:
+        """Get milestones formatted for frontend consumption."""
+        
+        milestones_result = await self.db.execute(
+            select(EventMilestone)
+            .where(EventMilestone.event_id == event_id)
+            .order_by(EventMilestone.due_date)
+        )
+        milestones = milestones_result.scalars().all()
+        
+        now = datetime.utcnow()
+        
+        return [
+            {
+                "id": f"ms-{m.id}",
+                "eventId": event_id,
+                "title": m.title,
+                "date": m.due_date.isoformat() if m.due_date else None,
+                "isCompleted": m.is_completed,
+                "isOverdue": m.due_date and m.due_date < now and not m.is_completed,
+                "isCriticalPath": m.is_critical
+            }
+            for m in milestones
+        ]
+    
     def _get_current_phase(self, phase_progress: Dict[str, Any]) -> str:
         """Determine current active phase."""
         for phase in ["ideation", "logistics", "marketing", "preparation", "execution", "review"]:

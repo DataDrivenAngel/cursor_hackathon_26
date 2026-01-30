@@ -155,6 +155,36 @@ async def get_events_page(
     })
 
 
+@router.get("/list", response_class=HTMLResponse)
+async def get_events_list(
+    request: Request,
+    status_filter: Optional[str] = Query(None, alias="status"),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get events list HTML partial for HTMX updates.
+    
+    This endpoint returns just the events grid HTML fragment for dynamic
+    updates without refreshing the entire page. Supports optional status filtering.
+    """
+    query = select(Event).options(
+        selectinload(Event.venue),
+        selectinload(Event.organizers).selectinload(Organizer.user)
+    )
+    
+    if status_filter and status_filter != "all":
+        query = query.where(Event.status == status_filter)
+    
+    query = query.order_by(desc(Event.created_at))
+    result = await db.execute(query)
+    events = result.scalars().all()
+    
+    return templates.TemplateResponse("components/events-list.html", {
+        "request": request,
+        "events": events
+    })
+
+
 @router.get("/{event_id}", response_model=EventResponse)
 async def get_event(event_id: int, db: AsyncSession = Depends(get_db)):
     """Get a single event by ID."""

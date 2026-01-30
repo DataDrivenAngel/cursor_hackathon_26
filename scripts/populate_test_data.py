@@ -18,7 +18,14 @@ from app.models.database_models import (
     EventSponsor, MarketingMaterial, AgentWorkflow, Permission,
     AttendeeProfile, EventAttendee
 )
-from app.models.workflow_models import EventWorkflowProgress, WorkflowStage, EventMilestone
+from app.models.workflow_models import (
+    EventWorkflowProgress, WorkflowStage, WorkflowSubtask, 
+    EventMilestone, WorkflowTemplate, PhaseStatus, TaskStatus, TaskPriority
+)
+from app.services.workflow_templates import (
+    SUBTASK_TEMPLATES, MILESTONE_TEMPLATES, PHASE_CONFIG,
+    get_workflow_template, generate_milestones_for_event
+)
 
 
 async def get_session():
@@ -619,6 +626,286 @@ async def create_agent_workflows(session, events, users):
     return workflows
 
 
+async def create_workflow_templates(session):
+    """Create workflow templates for different event types."""
+    print("Creating workflow templates...")
+    
+    templates = []
+    event_types = ["meetup", "workshop", "conference"]
+    
+    for event_type in event_types:
+        template = get_workflow_template(event_type)
+        
+        # Check if template already exists
+        from sqlalchemy import select
+        result = await session.execute(
+            select(WorkflowTemplate).where(
+                WorkflowTemplate.event_type == event_type,
+                WorkflowTemplate.name == template["phases"]["ideation"]["name"] + " Template"
+            )
+        )
+        existing = result.scalar_one_or_none()
+        
+        if existing:
+            print(f"  - Template for '{event_type}' already exists, skipping")
+            templates.append(existing)
+        else:
+            workflow_template = WorkflowTemplate(
+                name=f"{event_type.title()} Event Template",
+                description=f"Complete workflow template for {event_type} events",
+                event_type=event_type,
+                phases=PHASE_CONFIG,
+                default_tasks=SUBTASK_TEMPLATES,
+                default_milestones=MILESTONE_TEMPLATES.get(event_type, []),
+                typical_duration_days=60 if event_type == "conference" else 30,
+                marketing_start_days_before=30 if event_type == "conference" else 14,
+                is_active=True
+            )
+            session.add(workflow_template)
+            templates.append(workflow_template)
+            print(f"  - Created template for '{event_type}'")
+    
+    await session.commit()
+    for template in templates:
+        if template.id is None:
+            await session.refresh(template)
+    
+    print(f"✓ Created {len([t for t in templates if t.id is not None])} workflow templates")
+    return templates
+
+
+async def create_event_workflow_progress(session, events):
+    """Create workflow progress trackers for events."""
+    print("Creating workflow progress trackers...")
+    
+    progress_records = []
+    for event in events:
+        from sqlalchemy import select
+        result = await session.execute(
+            select(EventWorkflowProgress).where(EventWorkflowProgress.event_id == event.id)
+        )
+        existing = result.scalar_one_or_none()
+        
+        if existing:
+            print(f"  - Progress tracker for event {event.id} already exists, skipping")
+            progress_records.append(existing)
+        else:
+            progress = EventWorkflowProgress(
+                event_id=event.id,
+                current_phase="ideation",
+                completion_percentage=0.0,
+                is_on_track=True,
+                total_tasks=0,
+                completed_tasks=0,
+                overdue_tasks=0,
+                blocked_tasks=0,
+                total_milestones=0,
+                completed_milestones=0
+            )
+            session.add(progress)
+            progress_records.append(progress)
+    
+    await session.commit()
+    for progress in progress_records:
+        if progress.id is None:
+            await session.refresh(progress)
+    
+    new_count = sum(1 for p in progress_records if p.id is not None)
+    print(f"✓ Created {new_count} workflow progress trackers")
+    return progress_records
+
+
+async def create_workflow_stages(session, events):
+    """Create workflow stages for all phases of each event."""
+    print("Creating workflow stages...")
+    
+    stages = []
+    phase_order = ["ideation", "logistics", "marketing", "preparation", "execution", "review"]
+    
+    for event in events:
+        for phase in phase_order:
+            from sqlalchemy import select
+            result = await session.execute(
+                select(WorkflowStage).where(
+                    WorkflowStage.event_id == event.id,
+                    WorkflowStage.phase == phase
+                )
+            )
+            existing = result.scalar_one_or_none()
+            
+            if existing:
+                stages.append(existing)
+                continue
+            
+            config = PHASE_CONFIG.get(phase, {})
+            buffer_days = config.get("typical_duration_days", 7)
+            
+            # Calculate due date based on event date
+            due_date = event.scheduled_date - timedelta(days=buffer_days) if event.scheduled_date else None
+            
+            stage = WorkflowStage(
+                event_id=event.id,
+                phase=phase,
+                status="pending",
+                progress=0.0,
+                total_tasks=0,
+                completed_tasks=0,
+                order=config.get("order", 0),
+                due_date=due_date
+            )
+            session.add(stage)
+            stages.append(stage)
+    
+    await session.commit()
+    for stage in stages:
+        if stage.id is None:
+            await session.refresh(stage)
+    
+    print(f"✓ Created {len(stages)} workflow stages")
+    return stages
+
+
+async def create_workflow_subtasks(session, events, stages):
+    """Create workflow subtasks from templates."""
+    print("Creating workflow subtasks...")
+    
+    subtasks = []
+    subtask_statuses = ["todo", "in_progress", "review", "done"]
+    
+    for event in events:
+        event_stages = [s for s in stages if s.event_id == event.id]
+        
+        for stage in event_stages:
+            phase_templates = SUBTASK_TEMPLATES.get(stage.phase, {})
+            subtask_list = phase_templates.get("subtasks", [])
+            
+            for subtask_template in subtask_list:
+                from sqlalchemy import select
+                result = await session.execute(
+                    select(WorkflowSubtask).where(
+                        WorkflowSubtask.stage_id == stage.id,
+                        WorkflowSubtask.title == subtask_template["title"]
+                    )
+                )
+                existing = result.scalar_one_or_none()
+                
+                if existing:
+                    subtasks.append(existing)
+                    continue
+                
+                # Calculate due date relative to event date
+                due_date = None
+                if event.scheduled_date:
+                    days_before = subtask_template.get("estimated_hours", 8) // 2
+                    due_date = event.scheduled_date - timedelta(days=days_before)
+                
+                # Assign different statuses based on event index
+                status_idx = len([s for s in subtasks if s.stage_id == stage.id])
+                status = subtask_statuses[min(status_idx, len(subtask_statuses) - 1)]
+                
+                subtask = WorkflowSubtask(
+                    stage_id=stage.id,
+                    title=subtask_template["title"],
+                    description=subtask_template.get("description", ""),
+                    category=subtask_template.get("category", "general"),
+                    status=status,
+                    priority=subtask_template.get("priority", "medium"),
+                    due_date=due_date,
+                    estimated_hours=subtask_template.get("estimated_hours", 4),
+                    order=subtask_template.get("order", 0)
+                )
+                session.add(subtask)
+                subtasks.append(subtask)
+    
+    await session.commit()
+    for subtask in subtasks:
+        if subtask.id is None:
+            await session.refresh(subtask)
+    
+    print(f"✓ Created {len(subtasks)} workflow subtasks")
+    return subtasks
+
+
+async def create_event_milestones(session, events):
+    """Create event milestones from templates."""
+    print("Creating event milestones...")
+    
+    milestones = []
+    
+    for event in events:
+        # Use meetup as default template
+        milestone_templates = MILESTONE_TEMPLATES.get("meetup", [])
+        
+        for template in milestone_templates:
+            from sqlalchemy import select
+            result = await session.execute(
+                select(EventMilestone).where(
+                    EventMilestone.event_id == event.id,
+                    EventMilestone.title == template["title"]
+                )
+            )
+            existing = result.scalar_one_or_none()
+            
+            if existing:
+                milestones.append(existing)
+                continue
+            
+            # Calculate due date
+            due_date = event.scheduled_date - timedelta(days=template["days_before_event"]) if event.scheduled_date else None
+            
+            # Mark early milestones as completed for events in planning
+            import random
+            is_completed = template["days_before_event"] > 30 and random.random() > 0.5
+            
+            milestone = EventMilestone(
+                event_id=event.id,
+                title=template["title"],
+                description=f"Milestone: {template['title']}",
+                milestone_type=template.get("milestone_type", "deadline"),
+                due_date=due_date,
+                is_completed=is_completed,
+                is_critical=template.get("is_critical", False),
+                order=template.get("order", 0)
+            )
+            session.add(milestone)
+            milestones.append(milestone)
+    
+    await session.commit()
+    for milestone in milestones:
+        if milestone.id is None:
+            await session.refresh(milestone)
+    
+    print(f"✓ Created {len(milestones)} event milestones")
+    return milestones
+
+
+async def initialize_workflows_for_events(session, events):
+    """Initialize complete workflows for events using the workflow service."""
+    print("Initializing workflows for events...")
+    
+    from app.services.workflow_service import WorkflowService
+    
+    for event in events:
+        # Check if workflow already exists
+        from sqlalchemy import select
+        result = await session.execute(
+            select(EventWorkflowProgress).where(EventWorkflowProgress.event_id == event.id)
+        )
+        existing = result.scalar_one_or_none()
+        
+        if existing:
+            print(f"  - Workflow for event {event.id} already exists, updating...")
+            service = WorkflowService(session)
+            await service.calculate_progress(event.id)
+        else:
+            print(f"  - Initializing workflow for event: {event.title}")
+            service = WorkflowService(session)
+            await service.initialize_workflow(event.id, "meetup")
+    
+    print(f"✓ Workflows initialized for {len(events)} events")
+    return True
+
+
 async def create_permissions(session, users):
     """Create sample permissions."""
     print("Creating permissions...")
@@ -668,6 +955,18 @@ async def main():
             await create_agent_workflows(session, events, users)
             await create_permissions(session, users)
             
+            # Create workflow data
+            print("\n--- Creating Workflow Data ---")
+            await create_workflow_templates(session)
+            progress_records = await create_event_workflow_progress(session, events)
+            stages = await create_workflow_stages(session, events)
+            subtasks = await create_workflow_subtasks(session, events, stages)
+            milestones = await create_event_milestones(session, events)
+            
+            # Initialize workflows to calculate progress
+            print("\n--- Initializing Workflows ---")
+            await initialize_workflows_for_events(session, events)
+            
             print("\n" + "="*60)
             print("✅ DATABASE POPULATION COMPLETE!")
             print("="*60)
@@ -679,6 +978,10 @@ Summary:
   - {len(sponsors)} sponsors
   - {len(events)} events
   - Tasks, organizers, sponsorships, marketing materials, and workflows created
+  - {len(progress_records)} workflow progress records
+  - {len(stages)} workflow stages
+  - {len(subtasks)} workflow subtasks
+  - {len(milestones)} event milestones
 
 Authentication has been disabled for local development.
             """)
