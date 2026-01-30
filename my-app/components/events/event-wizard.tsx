@@ -139,47 +139,45 @@ export function EventWizard({ isOpen, onClose, onSubmit }: EventWizardProps) {
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-2xl bg-card border-border p-0 gap-0 max-h-[calc(100vh-4rem)] overflow-hidden">
         {/* Progress Steps */}
-        <div className="border-b border-border bg-secondary/30 px-6 py-4 shrink-0 w-full overflow-hidden">
-          <div className="flex items-center justify-between w-full min-w-0">
+        <div className="border-b border-border bg-secondary/30 px-4 py-4 shrink-0 w-full overflow-hidden">
+          <div className="flex flex-wrap items-center gap-y-3 gap-x-2 w-full min-w-0">
             {steps.map((step, index) => (
-              <div key={step.id} className="flex items-center">
-                <div className="flex items-center gap-3">
-                  <div
+              <div key={step.id} className="flex items-center gap-2">
+                <div
+                  className={cn(
+                    "flex h-10 w-10 items-center justify-center rounded-full border-2 transition-all duration-300 shrink-0",
+                    currentStep > step.id
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : currentStep === step.id
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border bg-secondary text-muted-foreground"
+                  )}
+                >
+                  {currentStep > step.id ? (
+                    <Check className="h-5 w-5" />
+                  ) : (
+                    <step.icon className="h-5 w-5" />
+                  )}
+                </div>
+                <div className="hidden sm:block min-w-0">
+                  <p
                     className={cn(
-                      "flex h-10 w-10 items-center justify-center rounded-full border-2 transition-all duration-300",
-                      currentStep > step.id
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : currentStep === step.id
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-border bg-secondary text-muted-foreground"
+                      "text-sm font-medium transition-colors truncate",
+                      currentStep >= step.id
+                        ? "text-card-foreground"
+                        : "text-muted-foreground"
                     )}
                   >
-                    {currentStep > step.id ? (
-                      <Check className="h-5 w-5" />
-                    ) : (
-                      <step.icon className="h-5 w-5" />
-                    )}
-                  </div>
-                  <div className="hidden sm:block">
-                    <p
-                      className={cn(
-                        "text-sm font-medium transition-colors",
-                        currentStep >= step.id
-                          ? "text-card-foreground"
-                          : "text-muted-foreground"
-                      )}
-                    >
-                      {step.name}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {step.description}
-                    </p>
-                  </div>
+                    {step.name}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {step.description}
+                  </p>
                 </div>
                 {index < steps.length - 1 && (
                   <div
                     className={cn(
-                      "mx-4 h-0.5 w-8 sm:w-12 lg:w-16 transition-colors duration-300",
+                      "h-0.5 w-8 sm:w-12 lg:w-16 transition-colors duration-300 hidden sm:block",
                       currentStep > step.id ? "bg-primary" : "bg-border"
                     )}
                   />
