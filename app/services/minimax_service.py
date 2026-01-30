@@ -1,9 +1,8 @@
 """
-MiniMax Image Generation Service.
-Generates AI images for events using the MiniMax API.
+MiniMax Image Generation Service via Replicate.
+Generates AI images for events using the MiniMax model through Replicate API.
 """
-import base64
-import httpx
+import os
 from typing import Optional
 from app.config import settings
 
@@ -14,7 +13,7 @@ async def generate_event_image(
     event_description: Optional[str] = None
 ) -> Optional[str]:
     """
-    Generate an event image using MiniMax API.
+    Generate an event image using MiniMax via Replicate API.
     
     Args:
         event_title: The title of the event
@@ -24,10 +23,19 @@ async def generate_event_image(
     Returns:
         URL of the generated image, or None if generation failed
     """
-    if not settings.MINIMAX_API_KEY:
+    # Check for Replicate API token in environment or settings
+    api_token = os.getenv("REPLICATE_API_TOKEN") or settings.REPLICATE_API_KEY
+    
+    if not api_token:
+        print("Replicate API token not configured. Set REPLICATE_API_TOKEN in .env")
         return None
     
     try:
+        import replicate
+        
+        # Configure Replicate
+        os.environ["REPLICATE_API_TOKEN"] = api_token
+        
         # Build a detailed prompt for the image
         prompt_parts = [f"Event: {event_title}"]
         
@@ -43,46 +51,38 @@ async def generate_event_image(
         
         prompt = ", ".join(prompt_parts)
         
-        # Make API request
-        url = "https://api.minimax.io/v1/image_generation"
+        # Run the MiniMax Image-01 model through Replicate
+        output = replicate.run(
+            "minimax/image-01",
+            input={
+                "prompt": prompt,
+                "aspect_ratio": "16:9",
+                "number_of_images": 1,
+                "prompt_optimizer": True
+            }
+        )
         
-        headers = {
-            "Authorization": f"Bearer {settings.MINIMAX_API_KEY}",
-            "Content-Type": "application/json"
-        }
+        if output and len(output) > 0:
+            # Get the image URL from the output
+            image_url = output[0].url if hasattr(output[0], 'url') else str(output[0])
+            
+            # If it's a file-like object, read it
+            if hasattr(output[0], 'read'):
+                image_data = output[0].read()
+                # Return as base64 data URL
+                import base64
+                return f"data:image/png;base64,{base64.b64encode(image_data).decode()}"
+            
+            # Otherwise return the URL directly
+            return image_url
         
-        payload = {
-            "model": "image-01",
-            "prompt": prompt,
-            "aspect_ratio": "16:9",
-            "response_format": "base64",
-        }
+        return None
         
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                url,
-                headers=headers,
-                json=payload,
-                timeout=60.0
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                images = data.get("data", {}).get("image_base64", [])
-                
-                if images:
-                    # Decode the first image
-                    image_data = base64.b64decode(images[0])
-                    
-                    # In a real implementation, you would upload this to cloud storage
-                    # For now, we'll return a placeholder URL
-                    # The image data could be saved to a file or cloud storage
-                    return f"data:image/jpeg;base64,{images[0]}"
-            
-            return None
-            
+    except ImportError:
+        print("Replicate package not installed. Run: pip install replicate")
+        return None
     except Exception as e:
-        print(f"Error generating image with MiniMax: {e}")
+        print(f"Error generating image with Replicate: {e}")
         return None
 
 

@@ -12,6 +12,42 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Parse command line arguments
+POPULATE_DATA=false
+RUN_SERVER=true
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -p|--populate-data)
+            POPULATE_DATA=true
+            RUN_SERVER=false
+            shift
+            ;;
+        -s|--server-only)
+            RUN_SERVER=true
+            POPULATE_DATA=false
+            shift
+            ;;
+        -h|--help)
+            echo "Usage: $0 [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  -p, --populate-data    Populate database with test data and exit"
+            echo "  -s, --server-only      Only run the server (default)"
+            echo "  -h, --help             Show this help message"
+            echo ""
+            echo "Examples:"
+            echo "  $0                     Run server with browser"
+            echo "  $0 -p                  Populate test data and exit"
+            exit 0
+            ;;
+        *)
+            print_error "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+done
+
 # Project root directory
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$PROJECT_ROOT"
@@ -111,6 +147,35 @@ else
     print_status ".env file already exists"
 fi
 
+# Populate test data if requested
+if [ "$POPULATE_DATA" = true ]; then
+    echo ""
+    echo -e "${BLUE}========================================${NC}"
+    print_info "Populating database with test data..."
+    echo -e "${BLUE}========================================${NC}"
+    echo ""
+    
+    # Activate virtual environment
+    source "$VENV_DIR/bin/activate"
+    cd "$PROJECT_ROOT"
+    
+    # Run the population script
+    python scripts/populate_test_data.py
+    
+    echo ""
+    print_status "Test data populated successfully!"
+    echo ""
+    echo "Test credentials:"
+    echo "  - Admin: admin / admin123"
+    echo "  - Organizer: organizer1 / organizer123"
+    echo "  - Assistant: assistant / assistant123"
+    echo ""
+    
+    deactivate
+    
+    exit 0
+fi
+
 # Kill any existing uvicorn server processes on port 8000
 print_info "Stopping any existing servers on port 8000..."
 # Find and kill process using port 8000
@@ -159,6 +224,15 @@ open_browser
 
 # Set environment variable to disable authentication for local development
 export DISABLE_AUTH=true
+
+# Set Replicate API token from .env if available
+if [ -f "$ENV_FILE" ]; then
+    # Extract REPLICATE_API_TOKEN from .env file if it exists
+    REPLICATE_TOKEN=$(grep "^REPLICATE_API_TOKEN=" "$ENV_FILE" | cut -d'=' -f2 | tr -d '"' | tr -d "'")
+    if [ -n "$REPLICATE_TOKEN" ]; then
+        export REPLICATE_API_TOKEN="$REPLICATE_TOKEN"
+    fi
+fi
 
 # Run with uvicorn
 exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
