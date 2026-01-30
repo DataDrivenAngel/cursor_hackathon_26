@@ -12,12 +12,20 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from app.database.connection import async_engine, async_session
+from app.database.connection import engine, async_session_factory
 from app.models.database_models import (
     User, Event, Organizer, Venue, Speaker, Task, Sponsor, 
-    EventSponsor, MarketingMaterial, AgentWorkflow, Permission
+    EventSponsor, MarketingMaterial, AgentWorkflow, Permission,
+    AttendeeProfile, EventAttendee
 )
-from app.database.schemas import hash_password
+from app.models.workflow_models import EventWorkflowProgress, WorkflowStage, EventMilestone
+from app.auth.utils import get_password_hash as hash_password
+
+
+async def get_session():
+    """Get a database session."""
+    async with async_session_factory() as session:
+        yield session
 
 
 # Sample Data & AI Topics
@@ -571,7 +579,7 @@ async def main():
     print("POPULATING DATABASE WITH TEST DATA")
     print("="*60 + "\n")
     
-    async with async_session() as session:
+    async with async_session_factory() as session:
         try:
             # Create all data
             users = await create_users(session)

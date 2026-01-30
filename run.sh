@@ -25,6 +25,7 @@ cd "$PROJECT_ROOT"
 # Parse command line arguments
 POPULATE_DATA=false
 RUN_SERVER=true
+RUN_SETUP=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -33,7 +34,12 @@ while [[ $# -gt 0 ]]; do
             RUN_SERVER=false
             shift
             ;;
-        -s|--server-only)
+        -s|--setup)
+            RUN_SETUP=true
+            RUN_SERVER=true
+            shift
+            ;;
+        --no-populate)
             RUN_SERVER=true
             POPULATE_DATA=false
             shift
@@ -45,11 +51,13 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Options:"
             echo "  -p, --populate-data    Populate database with test data and exit"
-            echo "  -s, --server-only      Only run the server (default)"
+            echo "  -s, --setup            Run database setup then start server"
+            echo "      --no-populate      Run server without populating data (default)"
             echo "  -h, --help             Show this help message"
             echo ""
             echo "Examples:"
             echo "  ./run.sh                           Run server with browser"
+            echo "  ./run.sh -s                        Setup database then run server"
             echo "  ./run.sh -p                        Populate test data and exit"
             echo "  cd subdir && ../run.sh               Run from subdirectory"
             exit 0
@@ -165,7 +173,58 @@ else
     print_status ".env file already exists"
 fi
 
-# Populate test data if requested
+# Run database setup if requested
+if [ "$RUN_SETUP" = true ]; then
+    echo ""
+    echo -e "${BLUE}========================================${NC}"
+    print_info "Running database setup..."
+    echo -e "${BLUE}========================================${NC}"
+    echo ""
+    
+    # Activate virtual environment if not already activated
+    if [ -z "$VIRTUAL_ENV" ]; then
+        source "$VENV_DIR/bin/activate"
+    else
+        print_status "Virtual environment already activated: $VIRTUAL_ENV"
+    fi
+    cd "$PROJECT_ROOT"
+    
+    # Initialize database tables
+    print_info "Initializing database tables..."
+    python -c "
+import asyncio
+from app.database.connection import init_db
+
+async def setup_database():
+    print('Creating database tables...')
+    await init_db()
+    print('Database tables created successfully!')
+
+asyncio.run(setup_database())
+"
+    print_status "Database tables initialized"
+    
+    # Populate test data
+    print_info "Populating database with test data..."
+    if [ -f "$PROJECT_ROOT/scripts/populate_test_data.py" ]; then
+        python "$PROJECT_ROOT/scripts/populate_test_data.py"
+        
+        echo ""
+        echo "Test credentials:"
+        echo "  - Admin: admin / admin123"
+        echo "  - Organizer: organizer1 / organizer123"
+        echo "  - Assistant: assistant / assistant123"
+        echo ""
+    else
+        print_error "Population script not found"
+    fi
+    
+    deactivate
+    print_status "Database setup completed"
+    echo ""
+fi
+
+# Populate test data if requested (standalone mode)
 if [ "$POPULATE_DATA" = true ]; then
     echo ""
     echo -e "${BLUE}========================================${NC}"

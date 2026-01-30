@@ -54,6 +54,7 @@ async def init_db():
         from app.models.database_models import User, Event, Organizer, Venue, Speaker
         from app.models.database_models import Task, Sponsor, AgentWorkflow, MarketingMaterial
         from app.models.database_models import Permission, EventSponsor, AttendeeProfile, EventAttendee
+        from app.models.workflow_models import EventWorkflowProgress, WorkflowStage, EventMilestone
         
         # Create all tables
         await conn.run_sync(Base.metadata.create_all)
