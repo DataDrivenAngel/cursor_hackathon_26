@@ -1,6 +1,6 @@
 # Meetup Organizing Information Support System
 
-<video src="Screencast from 2026-01-30 14-49-12.webm" controls width="100%"></video>
+[▶️ Watch Demo Video](Screencast%20from%202026-01-30%2014-49-12.webm)
 
 ![MiniMax Logo](minimax.jpg)
 
