@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { EventsGrid } from "@/components/events/events-grid";
@@ -14,21 +14,44 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Filter, SlidersHorizontal } from "lucide-react";
-import { mockEvents, mockNotifications } from "@/lib/mock-data";
+import { Search, Filter, SlidersHorizontal, Loader2, RefreshCw } from "lucide-react";
+import { mockNotifications } from "@/lib/mock-data";
+import { getEvents } from "@/lib/api";
+import type { Event } from "@/lib/types";
+import { toast } from "sonner";
 
 export default function EventsPage() {
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [formatFilter, setFormatFilter] = useState<string>("all");
+  const [events, setEvents] = useState<Event[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Filter events
-  const filteredEvents = mockEvents.filter((event) => {
+  const fetchEvents = async () => {
+    setIsLoading(true);
+    try {
+      const eventsData = await getEvents().catch(() => []);
+      setEvents(eventsData);
+    } catch (error) {
+      console.error("Error fetching events:", error);
+      toast.error("Failed to load events from backend");
+      setEvents([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchEvents();
+  }, []);
+
+  // Filter events based on search and filters
+  const filteredEvents = events.filter((event) => {
     const matchesSearch =
       event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       event.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      event.topic.toLowerCase().includes(searchQuery.toLowerCase());
+      (event.topic && event.topic.toLowerCase().includes(searchQuery.toLowerCase()));
 
     const matchesStatus =
       statusFilter === "all" || event.status === statusFilter;
@@ -150,16 +173,35 @@ export default function EventsPage() {
           </div>
 
           {/* Events Grid */}
-          <EventsGrid
-            events={filteredEvents}
-            title={`${filteredEvents.length} Event${filteredEvents.length !== 1 ? "s" : ""}`}
-          />
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : filteredEvents.length > 0 ? (
+            <EventsGrid
+              events={filteredEvents}
+              title={`${filteredEvents.length} Event${filteredEvents.length !== 1 ? "s" : ""}`}
+            />
+          ) : (
+            <div className="text-center py-12 text-muted-foreground">
+              <p>No events found matching your criteria.</p>
+              <Button
+                onClick={() => setIsWizardOpen(true)}
+                className="mt-4"
+              >
+                Create New Event
+              </Button>
+            </div>
+          )}
         </main>
       </div>
 
       <EventWizard
         isOpen={isWizardOpen}
         onClose={() => setIsWizardOpen(false)}
+        onSubmit={async () => {
+          await fetchEvents();
+        }}
       />
     </div>
   );

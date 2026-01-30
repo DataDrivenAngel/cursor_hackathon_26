@@ -29,7 +29,9 @@ import {
   Eye,
   Loader2,
 } from "lucide-react";
+import { createEvent } from "@/lib/api";
 import type { EventWizardData, EventFormat } from "@/lib/types";
+import { toast } from "sonner";
 
 interface EventWizardProps {
   isOpen: boolean;
@@ -113,12 +115,14 @@ export function EventWizard({ isOpen, onClose, onSubmit }: EventWizardProps) {
       if (onSubmit) {
         await onSubmit(formData);
       } else {
-        // Simulate API call
-        await new Promise((resolve) => setTimeout(resolve, 1500));
+        // Submit to FastAPI backend
+        await createEvent(formData);
+        toast.success("Event created successfully!");
       }
       handleClose();
-    } catch {
-      // Handle error
+    } catch (error) {
+      console.error("Error creating event:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to create event. Please try again.");
     } finally {
       setIsSubmitting(false);
     }

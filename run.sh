@@ -26,22 +26,33 @@ cd "$PROJECT_ROOT"
 POPULATE_DATA=false
 RUN_SERVER=true
 RUN_SETUP=false
+RUN_FRONTEND=true
 
 while [[ $# -gt 0 ]]; do
     case $1 in
         -p|--populate-data)
             POPULATE_DATA=true
             RUN_SERVER=false
+            RUN_FRONTEND=false
             shift
             ;;
         -s|--setup)
             RUN_SETUP=true
             RUN_SERVER=true
+            RUN_FRONTEND=false
             shift
             ;;
         --no-populate)
             RUN_SERVER=true
             POPULATE_DATA=false
+            shift
+            ;;
+        --no-frontend)
+            RUN_FRONTEND=false
+            shift
+            ;;
+        --backend-only)
+            RUN_FRONTEND=false
             shift
             ;;
         -h|--help)
@@ -51,13 +62,16 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Options:"
             echo "  -p, --populate-data    Populate database with test data and exit"
-            echo "  -s, --setup            Run database setup then start server"
-            echo "      --no-populate      Run server without populating data (default)"
+            echo "  -s, --setup            Run database setup then start servers"
+            echo "      --no-populate      Run servers without populating data (default)"
+            echo "      --no-frontend      Run only the backend server"
+            echo "      --backend-only     Run only the backend server (same as --no-frontend)"
             echo "  -h, --help             Show this help message"
             echo ""
             echo "Examples:"
-            echo "  ./run.sh                           Run server with browser"
-            echo "  ./run.sh -s                        Setup database then run server"
+            echo "  ./run.sh                           Run both servers with browser"
+            echo "  ./run.sh -s                        Setup database then run servers"
+            echo "  ./run.sh --no-frontend             Run only backend server"
             echo "  ./run.sh -p                        Populate test data and exit"
             echo "  cd subdir && ../run.sh               Run from subdirectory"
             exit 0
@@ -92,6 +106,35 @@ print_error() {
 print_info() {
     echo -e "${BLUE}[i]${NC} $1"
 }
+
+# Cleanup function to stop servers on exit
+cleanup() {
+    echo ""
+    print_info "Stopping servers..."
+    
+    # Kill backend server
+    if [ -n "$BACKEND_PID" ] && kill -0 "$BACKEND_PID" 2>/dev/null; then
+        kill "$BACKEND_PID" 2>/dev/null || true
+        print_status "Backend server stopped"
+    fi
+    
+    # Kill frontend server
+    if command -v fuser &> /dev/null; then
+        fuser -k 3000/tcp 2>/dev/null || true
+    elif command -v lsof &> /dev/null; then
+        lsof -ti:3000 | xargs kill -9 2>/dev/null || true
+    fi
+    
+    # Kill any remaining servers
+    pkill -f "uvicorn.*8000" 2>/dev/null || true
+    pkill -f "next.*dev.*3000" 2>/dev/null || true
+    
+    print_status "All servers stopped"
+    exit 0
+}
+
+# Set trap for cleanup on script exit
+trap cleanup INT TERM EXIT
 
 # Check Python version
 print_info "Checking Python version..."
@@ -261,16 +304,24 @@ if [ "$POPULATE_DATA" = true ]; then
     exit 0
 fi
 
-# Kill any existing uvicorn server processes on port 8000
-print_info "Stopping any existing servers on port 8000..."
+# Kill any existing server processes
+print_info "Stopping any existing servers..."
 
-# Find and kill process using port 8000
+# Find and kill process using port 3000 (Next.js)
+if command -v fuser &> /dev/null; then
+    fuser -k 3000/tcp 2>/dev/null || true
+elif command -v lsof &> /dev/null; then
+    lsof -ti:3000 | xargs kill -9 2>/dev/null || true
+else
+    pkill -f "next.*dev.*3000" 2>/dev/null || true
+fi
+
+# Find and kill process using port 8000 (FastAPI)
 if command -v fuser &> /dev/null; then
     fuser -k 8000/tcp 2>/dev/null || true
 elif command -v lsof &> /dev/null; then
     lsof -ti:8000 | xargs kill -9 2>/dev/null || true
 else
-    # Fallback to pkill if neither fuser nor lsof is available
     pkill -f "uvicorn.*8000" 2>/dev/null || true
 fi
 
@@ -278,17 +329,10 @@ sleep 1
 print_status "Previous servers stopped"
 
 echo ""
-echo -e "The application will be available at: ${GREEN}http://localhost:8000${NC}"
-echo -e "Press ${YELLOW}Ctrl+C${NC} to stop the server"
+echo -e "${BLUE}========================================${NC}"
+echo -e "${BLUE}  Meetup Organizing System - Runner${NC}"
+echo -e "${BLUE}========================================${NC}"
 echo ""
-
-# Activate virtual environment if not already activated
-if [ -z "$VIRTUAL_ENV" ]; then
-    source "$VENV_DIR/bin/activate"
-else
-    print_status "Virtual environment already activated: $VIRTUAL_ENV"
-fi
-cd "$PROJECT_ROOT"
 
 # Function to open browser (cross-platform)
 open_browser() {
@@ -297,34 +341,118 @@ import webbrowser
 import time
 import sys
 
-# Wait a moment for server to start
-time.sleep(2)
+# Wait for servers to start
+time.sleep(5)
 
-# Open the browser
-success = webbrowser.open('http://localhost:8000')
+# Open the frontend
+success = webbrowser.open('http://localhost:3000')
 if success:
-    print('Browser opened successfully!')
+    print('Browser opened successfully to http://localhost:3000!')
 else:
-    print('Could not open browser automatically. Please open http://localhost:8000 manually.')
+    print('Could not open browser automatically. Please open http://localhost:3000 manually.')
     sys.exit(0)
 " &
 }
 
-# Open browser in background
-print_info "Opening browser..."
-open_browser
+# Function to run the FastAPI backend
+run_backend() {
+    # Activate virtual environment if not already activated
+    if [ -z "\$VIRTUAL_ENV" ]; then
+        source "$VENV_DIR/bin/activate"
+    fi
+    cd "$PROJECT_ROOT"
+    
+    # Set environment variable to disable authentication for local development
+    export DISABLE_AUTH=true
+    
+    # Set Replicate API token from .env if available
+    if [ -f "$ENV_FILE" ]; then
+        REPLICATE_TOKEN=\$(grep "^REPLICATE_API_TOKEN=" "$ENV_FILE" | cut -d'=' -f2 | tr -d '"' | tr -d "'")
+        if [ -n "\$REPLICATE_TOKEN" ]; then
+            export REPLICATE_API_TOKEN="\$REPLICATE_TOKEN"
+        fi
+    fi
+    
+    # Run with uvicorn
+    exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+}
 
-# Set environment variable to disable authentication for local development
-export DISABLE_AUTH=true
+# Function to run the Next.js frontend
+run_frontend() {
+    cd "$PROJECT_ROOT/my-app"
+    
+    # Check if node_modules exists
+    if [ ! -d "node_modules" ]; then
+        print_info "Installing Next.js dependencies..."
+        npm install
+        print_status "Dependencies installed"
+    fi
+    
+    # Run Next.js development server
+    exec npm run dev -- --port 3000
+}
 
-# Set Replicate API token from .env if available
-if [ -f "$ENV_FILE" ]; then
-    # Extract REPLICATE_API_TOKEN from .env file if it exists
-    REPLICATE_TOKEN=$(grep "^REPLICATE_API_TOKEN=" "$ENV_FILE" | cut -d'=' -f2 | tr -d '"' | tr -d "'")
-    if [ -n "$REPLICATE_TOKEN" ]; then
-        export REPLICATE_API_TOKEN="$REPLICATE_TOKEN"
+# Run both servers
+if [ "$RUN_SERVER" = true ]; then
+    # Start backend server in background
+    print_info "Starting FastAPI backend server on port 8000..."
+    run_backend &
+    BACKEND_PID=$!
+    print_status "Backend server started (PID: $BACKEND_PID)"
+    
+    # Wait for backend to be ready
+    print_info "Waiting for backend server to be ready..."
+    for i in {1..30}; do
+        if curl -s http://localhost:8000/health > /dev/null 2>&1; then
+            print_status "Backend server is ready!"
+            break
+        fi
+        sleep 1
+    done
+    
+    if ! curl -s http://localhost:8000/health > /dev/null 2>&1; then
+        print_warning "Backend server may not be ready yet, continuing..."
     fi
 fi
 
-# Run with uvicorn
-exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+if [ "$RUN_FRONTEND" = true ]; then
+    echo ""
+    echo -e "FastAPI backend:  ${GREEN}http://localhost:8000${NC}"
+    echo -e "Frontend:        ${GREEN}http://localhost:3000${NC}"
+    echo ""
+    
+    # Open browser in background
+    print_info "Opening browser..."
+    open_browser
+    
+    # Run frontend server
+    run_frontend
+else
+    echo ""
+    echo -e "FastAPI backend is running at: ${GREEN}http://localhost:8000${NC}"
+    echo -e "Press ${YELLOW}Ctrl+C${NC} to stop the server"
+    echo ""
+    
+    # If only backend, run it in foreground
+    if [ "$RUN_SERVER" = true ]; then
+        # Activate virtual environment if not already activated
+        if [ -z "$VIRTUAL_ENV" ]; then
+            source "$VENV_DIR/bin/activate"
+        fi
+        cd "$PROJECT_ROOT"
+        
+        # Set environment variable to disable authentication for local development
+        export DISABLE_AUTH=true
+        
+        # Set Replicate API token from .env if available
+        if [ -f "$ENV_FILE" ]; then
+            REPLICATE_TOKEN=$(grep "^REPLICATE_API_TOKEN=" "$ENV_FILE" | cut -d'=' -f2 | tr -d '"' | tr -d "'")
+            if [ -n "$REPLICATE_TOKEN" ]; then
+                export REPLICATE_API_TOKEN="$REPLICATE_TOKEN"
+            fi
+        fi
+        
+        # Run with uvicorn in foreground
+        exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    fi
+fi
