@@ -52,6 +52,14 @@ class Event(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, onupdate=datetime.utcnow)
     
+    # Workflow fields
+    workflow_phase = Column(String(50), default="ideation")
+    event_format = Column(String(50))  # in_person, virtual, hybrid
+    max_attendees = Column(Integer)
+    registration_deadline = Column(DateTime)
+    is_featured = Column(Boolean, default=False)
+    cover_image_url = Column(String(500))
+    
     # Relationships
     creator = relationship("User", back_populates="organized_events", foreign_keys=[created_by])
     venue = relationship("Venue", back_populates="events")
@@ -61,6 +69,11 @@ class Event(Base):
     event_attendees = relationship("EventAttendee", back_populates="event", cascade="all, delete-orphan")
     marketing_materials = relationship("MarketingMaterial", back_populates="event", cascade="all, delete-orphan")
     agent_workflows = relationship("AgentWorkflow", back_populates="event")
+    
+    # Workflow relationships
+    workflow_progress = relationship("EventWorkflowProgress", uselist=False, cascade="all, delete-orphan")
+    workflow_stages = relationship("WorkflowStage", back_populates="event", cascade="all, delete-orphan")
+    milestones = relationship("EventMilestone", back_populates="event", cascade="all, delete-orphan")
 
 
 class Organizer(Base):

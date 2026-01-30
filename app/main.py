@@ -12,7 +12,7 @@ from pathlib import Path
 from app.config import settings
 from app.database.connection import init_db, get_db
 from app.models.database_models import Event
-from app.routers import events, venues, speakers, marketing, kanban, sponsors, admin
+from app.routers import events, venues, speakers, marketing, kanban, sponsors, admin, workflow
 from app.auth.router import router as auth_router
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -55,6 +55,7 @@ app.include_router(speakers.router, prefix="/speakers", tags=["Speakers"])
 app.include_router(marketing.router, prefix="/marketing", tags=["Marketing"])
 app.include_router(sponsors.router, prefix="/sponsors", tags=["Sponsors"])
 app.include_router(admin.router, prefix="/admin", tags=["Admin"])
+app.include_router(workflow.router, prefix="", tags=["Workflow"])
 
 
 @app.get("/", response_class=HTMLResponse)

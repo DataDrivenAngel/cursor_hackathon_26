@@ -2,6 +2,7 @@
 
 # Meetup Organizing Information Support System - Local Development Runner
 # This script sets up and runs the application locally for testing
+# Can be called from any directory within the repo
 
 set -e  # Exit on error
 
@@ -11,6 +12,15 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
+
+# Detect script location and project root
+# This works even when called from subdirectories
+SCRIPT_PATH="${BASH_SOURCE[0]}"
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+PROJECT_ROOT="$SCRIPT_DIR"
+
+# Change to project root to ensure all paths work
+cd "$PROJECT_ROOT"
 
 # Parse command line arguments
 POPULATE_DATA=false
@@ -29,7 +39,9 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         -h|--help)
-            echo "Usage: $0 [OPTIONS]"
+            echo "Usage: ./run.sh [OPTIONS]"
+            echo ""
+            echo "This script can be run from any directory within the project."
             echo ""
             echo "Options:"
             echo "  -p, --populate-data    Populate database with test data and exit"
@@ -37,24 +49,23 @@ while [[ $# -gt 0 ]]; do
             echo "  -h, --help             Show this help message"
             echo ""
             echo "Examples:"
-            echo "  $0                     Run server with browser"
-            echo "  $0 -p                  Populate test data and exit"
+            echo "  ./run.sh                           Run server with browser"
+            echo "  ./run.sh -p                        Populate test data and exit"
+            echo "  cd subdir && ../run.sh               Run from subdirectory"
             exit 0
             ;;
         *)
-            print_error "Unknown option: $1"
+            echo -e "${RED}[✗]${NC} Unknown option: $1"
             exit 1
             ;;
     esac
 done
 
-# Project root directory
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$PROJECT_ROOT"
-
 echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}  Meetup Organizing System - Runner${NC}"
 echo -e "${BLUE}========================================${NC}"
+echo ""
+echo -e "Project root: ${GREEN}$PROJECT_ROOT${NC}"
 echo ""
 
 # Function to print status messages
@@ -84,8 +95,10 @@ fi
 PYTHON_VERSION=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
 print_status "Python $PYTHON_VERSION found"
 
-# Create virtual environment if it doesn't exist
+# Virtual environment directory
 VENV_DIR="$PROJECT_ROOT/venv"
+
+# Create virtual environment if it doesn't exist
 if [ ! -d "$VENV_DIR" ]; then
     print_info "Creating virtual environment..."
     python3 -m venv "$VENV_DIR"
@@ -94,7 +107,7 @@ else
     print_status "Virtual environment already exists"
 fi
 
-# Activate install dependencies
+# Activate and install dependencies
 print_info "Installing dependencies..."
 source "$VENV_DIR/bin/activate"
 
@@ -106,7 +119,7 @@ if [ -f "$PROJECT_ROOT/requirements.txt" ]; then
     pip install -r "$PROJECT_ROOT/requirements.txt" --quiet
     print_status "Dependencies installed"
 else
-    print_error "requirements.txt not found"
+    print_error "requirements.txt not found at $PROJECT_ROOT/requirements.txt"
     exit 1
 fi
 
@@ -131,8 +144,10 @@ MEETUP_API_KEY=
 LUMA_API_KEY=
 MINIMAX_API_KEY=
 PERPLEXITY_API_KEY=
+JIGSAWSTACK_API_KEY=
+REPLICATE_API_TOKEN=
 
-# JWT Secret (change this in production!)
+# JWT Secret (change this in production!
 JWT_SECRET_KEY=dev-secret-key-change-in-production
 
 # Database path
@@ -160,16 +175,20 @@ if [ "$POPULATE_DATA" = true ]; then
     cd "$PROJECT_ROOT"
     
     # Run the population script
-    python scripts/populate_test_data.py
-    
-    echo ""
-    print_status "Test data populated successfully!"
-    echo ""
-    echo "Test credentials:"
-    echo "  - Admin: admin / admin123"
-    echo "  - Organizer: organizer1 / organizer123"
-    echo "  - Assistant: assistant / assistant123"
-    echo ""
+    if [ -f "$PROJECT_ROOT/scripts/populate_test_data.py" ]; then
+        python "$PROJECT_ROOT/scripts/populate_test_data.py"
+        
+        echo ""
+        print_status "Test data populated successfully!"
+        echo ""
+        echo "Test credentials:"
+        echo "  - Admin: admin / admin123"
+        echo "  - Organizer: organizer1 / organizer123"
+        echo "  - Assistant: assistant / assistant123"
+        echo ""
+    else
+        print_error "Population script not found at $PROJECT_ROOT/scripts/populate_test_data.py"
+    fi
     
     deactivate
     
@@ -178,6 +197,7 @@ fi
 
 # Kill any existing uvicorn server processes on port 8000
 print_info "Stopping any existing servers on port 8000..."
+
 # Find and kill process using port 8000
 if command -v fuser &> /dev/null; then
     fuser -k 8000/tcp 2>/dev/null || true
@@ -187,8 +207,10 @@ else
     # Fallback to pkill if neither fuser nor lsof is available
     pkill -f "uvicorn.*8000" 2>/dev/null || true
 fi
+
 sleep 1
 print_status "Previous servers stopped"
+
 echo ""
 echo -e "The application will be available at: ${GREEN}http://localhost:8000${NC}"
 echo -e "Press ${YELLOW}Ctrl+C${NC} to stop the server"

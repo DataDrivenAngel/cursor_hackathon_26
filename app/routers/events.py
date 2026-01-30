@@ -3,9 +3,11 @@ Events router - CRUD operations, topic recommendations, and integrations.
 """
 from typing import List, Optional
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, desc
+from sqlalchemy import select, func, desc, and_
 from sqlalchemy.orm import selectinload
 from app.database.connection import get_db
 from app.database.schemas import (
@@ -15,8 +17,9 @@ from app.database.schemas import (
 )
 from app.auth.dependencies import get_current_user, bypass_admin_check
 from app.models.database_models import (
-    User, Event, Organizer, Venue, Speaker, Task, MarketingMaterial
+    User, Event, Organizer, Venue, Speaker, Task, MarketingMaterial, EventSponsor
 )
+from app.models.workflow_models import WorkflowStage, WorkflowSubtask
 from app.services.topic_recommender import get_topic_recommendations
 from app.services.meetup_service import create_meetup_event, sync_meetup_status
 from app.services.luma_service import create_luma_event, sync_luma_status
@@ -27,8 +30,91 @@ from app.agents.speaker_research import research_speakers
 
 router = APIRouter()
 
+# Templates
+templates = Jinja2Templates(directory="app/templates")
 
-# ==================== CRUD Operations ====================
+
+# ==================== HTML Pages ====================
+
+@router.get("/{event_id}/page", response_class=HTMLResponse)
+async def get_event_page(
+    request: Request,
+    event_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get event detail page."""
+    result = await db.execute(
+        select(Event).options(
+            selectinload(Event.venue),
+            selectinload(Event.organizers).selectinload(Organizer.user),
+            selectinload(Event.tasks),
+            selectinload(Event.event_sponsors).selectinload(EventSponsor.sponsor),
+            selectinload(Event.marketing_materials)
+        ).where(Event.id == event_id)
+    )
+    event = result.scalar_one_or_none()
+    
+    if event is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found"
+        )
+    
+    return templates.TemplateResponse("event_detail.html", {
+        "request": request,
+        "event": event
+    })
+
+
+@router.get("/{event_id}/workflow/page", response_class=HTMLResponse)
+async def get_workflow_page(
+    request: Request,
+    event_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get event workflow tracker page."""
+    from app.services.workflow_service import WorkflowService
+    from app.services.workflow_templates import PHASE_CONFIG
+    from app.models.workflow_models import WorkflowSubtask
+    
+    # Get event
+    result = await db.execute(
+        select(Event).options(
+            selectinload(Event.venue),
+            selectinload(Event.organizers).selectinload(Organizer.user)
+        ).where(Event.id == event_id)
+    )
+    event = result.scalar_one_or_none()
+    
+    if event is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found"
+        )
+    
+    # Get workflow data
+    service = WorkflowService(db)
+    workflow_data = await service.get_workflow_summary(event_id)
+    
+    # Get all subtasks
+    subtasks_result = await db.execute(
+        select(WorkflowSubtask).options(
+            selectinload(WorkflowSubtask.stage)
+        ).join(WorkflowStage).where(
+            and_(
+                WorkflowStage.event_id == event_id
+            )
+        )
+    )
+    subtasks = subtasks_result.scalars().all()
+    
+    return templates.TemplateResponse("event_workflow.html", {
+        "request": request,
+        "event": event,
+        "workflow": workflow_data,
+        "subtasks": subtasks,
+        "PHASE_CONFIG": PHASE_CONFIG
+    })
 
 @router.get("/", response_model=List[EventResponse])
 async def list_events(

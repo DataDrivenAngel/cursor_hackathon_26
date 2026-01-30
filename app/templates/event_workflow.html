@@ -1,0 +1,844 @@
+{% extends "base.html" %}
+
+{% block title %}{{ event.title }} - Workflow Tracker{% endblock %}
+
+{% block content %}
+<div class="event-workflow-page">
+    <!-- Event Header -->
+    <header class="page-header workflow-header">
+        <div class="event-info">
+            <h1>{{ event.title }}</h1>
+            <div class="event-meta">
+                {% if event.scheduled_date %}
+                <span class="date">
+                    📅 {{ event.scheduled_date.strftime('%B %d, %Y at %I:%M %p') }}
+                </span>
+                {% endif %}
+                {% if event.venue %}
+                <span class="venue">
+                    📍 {{ event.venue.name }}, {{ event.venue.city }}
+                </span>
+                {% endif %}
+                <span class="status status-{{ event.status }}">
+                    {{ event.status }}
+                </span>
+            </div>
+        </div>
+        <div class="header-actions">
+            <button class="btn btn-primary" onclick="initializeWorkflow()">
+                🚀 Initialize Workflow
+            </button>
+        </div>
+    </header>
+
+    <!-- Workflow Progress Summary -->
+    <div class="workflow-summary" id="workflow-summary" hx-get="/events/{{ event.id }}/workflow/progress" hx-trigger="load, workflowUpdated from:body" hx-target="this">
+        <div class="summary-card">
+            <div class="summary-icon">📊</div>
+            <div class="summary-content">
+                <span class="summary-value">{{ workflow.progress.overall_progress|default(0)|round|int }}%</span>
+                <span class="summary-label">Complete</span>
+            </div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-icon">⏱️</div>
+            <div class="summary-content">
+                <span class="summary-value">{{ workflow.progress.timeline.days_until_event|default(0) }}</span>
+                <span class="summary-label">Days Until Event</span>
+            </div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-icon">✅</div>
+            <div class="summary-content">
+                <span class="summary-value">{{ workflow.progress.tasks.done|default(0) }}</span>
+                <span class="summary-label">Tasks Done</span>
+            </div>
+        </div>
+        <div class="summary-card {% if not workflow.progress.timeline.is_on_track %}warning{% endif %}">
+            <div class="summary-icon">😊</div>
+            <div class="summary-content">
+                <span class="summary-value">{% if workflow.progress.timeline.is_on_track %}On Track{% else %}At Risk{% endif %}</span>
+                <span class="summary-label">Status</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Suggestions Panel -->
+    {% if workflow.suggestions or workflow.warnings %}
+    <div class="ai-suggestions-panel">
+        <div class="suggestions-header">
+            <span class="ai-icon">🤖</span>
+            <h3>AI Event Assistant</h3>
+        </div>
+        <div class="suggestions-content">
+            {% for warning in workflow.warnings %}
+            <div class="suggestion warning">
+                <span class="suggestion-icon">⚠️</span>
+                <p>{{ warning }}</p>
+            </div>
+            {% endfor %}
+            {% for suggestion in workflow.suggestions %}
+            <div class="suggestion">
+                <span class="suggestion-icon">💡</span>
+                <p>{{ suggestion }}</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Workflow Progress Bar -->
+    <section class="workflow-progress-section">
+        <h2>📍 Workflow Progress</h2>
+        <div class="workflow-progress-bar" id="workflow-progress">
+            {% for phase_name, phase_data in workflow.progress.phases.items() %}
+            <div class="progress-phase {% if phase_data.status == 'completed' %}completed{% elif phase_data.status == 'in_progress' %}active{% endif %}" 
+                 style="--phase-color: {{ phase_data.color }}; --phase-progress: {{ phase_data.progress }}%; flex: {{ PHASE_CONFIG[phase_name].weight }}">
+                <div class="phase-icon">{{ phase_data.icon }}</div>
+                <div class="phase-info">
+                    <span class="phase-name">{{ phase_data.name }}</span>
+                    <div class="phase-progress-bar">
+                        <div class="phase-progress-fill" style="width: {{ phase_data.progress }}%"></div>
+                    </div>
+                    <span class="phase-percent">{{ phase_data.progress|round|int }}%</span>
+                </div>
+                <div class="phase-tasks">
+                    {{ phase_data.completed_tasks }}/{{ phase_data.total_tasks }} tasks
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <!-- Timeline View -->
+    <section class="timeline-section">
+        <div class="section-header">
+            <h2>🗓️ Event Timeline</h2>
+            <div class="timeline-filters">
+                <button class="filter-btn active" data-filter="all">All</button>
+                <button class="filter-btn" data-filter="milestone">Milestones</button>
+                <button class="filter-btn" data-filter="task">Tasks</button>
+            </div>
+        </div>
+        <div class="timeline-container" id="timeline">
+            <!-- Timeline will be populated by HTMX -->
+            <div class="timeline-loading">Loading timeline...</div>
+        </div>
+    </section>
+
+    <!-- Task Board -->
+    <section class="taskboard-section">
+        <div class="section-header">
+            <h2>📋 Task Board</h2>
+            <div class="task-filters">
+                <select id="phase-filter" hx-on="change: filterTasksByPhase(this.value)">
+                    <option value="all">All Phases</option>
+                    {% for phase_name, phase_data in workflow.progress.phases.items() %}
+                    <option value="{{ phase_name }}">{{ phase_data.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="taskboard" id="taskboard">
+            <div class="task-columns">
+                <!-- TODO Column -->
+                <div class="task-column" data-status="todo">
+                    <div class="column-header">
+                        <span class="column-icon">📋</span>
+                        <h3>To Do</h3>
+                        <span class="task-count">{{ workflow.progress.tasks.todo|default(0) }}</span>
+                    </div>
+                    <div class="task-list" id="tasks-todo">
+                        {% for subtask in subtasks %}
+                        {% if subtask.status == 'todo' %}
+                        <div class="task-card" data-id="{{ subtask.id }}" data-phase="{{ subtask.stage.phase }}">
+                            <div class="task-header">
+                                <span class="task-priority priority-{{ subtask.priority }}">{{ subtask.priority }}</span>
+                                <span class="task-category">{{ subtask.category }}</span>
+                            </div>
+                            <h4>{{ subtask.title }}</h4>
+                            {% if subtask.description %}
+                            <p class="task-description">{{ subtask.description|truncate(80) }}</p>
+                            {% endif %}
+                            <div class="task-footer">
+                                {% if subtask.due_date %}
+                                <span class="task-due {% if subtask.due_date < now %}overdue{% endif %}">
+                                    📅 {{ subtask.due_date.strftime('%b %d') }}
+                                </span>
+                                {% endif %}
+                                <button class="task-action-btn" 
+                                        hx-put="/events/{{ event.id }}/workflow/subtasks/{{ subtask.id }}?status=in_progress"
+                                        hx-target="closest .task-card"
+                                        hx-swap="outerHTML">
+                                    ▶️ Start
+                                </button>
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- In Progress Column -->
+                <div class="task-column" data-status="in_progress">
+                    <div class="column-header">
+                        <span class="column-icon">🔄</span>
+                        <h3>In Progress</h3>
+                        <span class="task-count">{{ workflow.progress.tasks.in_progress|default(0) }}</span>
+                    </div>
+                    <div class="task-list" id="tasks-in_progress">
+                        {% for subtask in subtasks %}
+                        {% if subtask.status == 'in_progress' %}
+                        <div class="task-card" data-id="{{ subtask.id }}" data-phase="{{ subtask.stage.phase }}">
+                            <div class="task-header">
+                                <span class="task-priority priority-{{ subtask.priority }}">{{ subtask.priority }}</span>
+                                <span class="task-category">{{ subtask.category }}</span>
+                            </div>
+                            <h4>{{ subtask.title }}</h4>
+                            {% if subtask.description %}
+                            <p class="task-description">{{ subtask.description|truncate(80) }}</p>
+                            {% endif %}
+                            <div class="task-footer">
+                                {% if subtask.due_date %}
+                                <span class="task-due">{{ subtask.due_date.strftime('%b %d') }}</span>
+                                {% endif %}
+                                <div class="task-actions">
+                                    <button class="task-action-btn" 
+                                            hx-put="/events/{{ event.id }}/workflow/subtasks/{{ subtask.id }}?status=review"
+                                            hx-target="closest .task-card"
+                                            hx-swap="outerHTML">
+                                        👀 Review
+                                    </button>
+                                    <button class="task-action-btn blocked"
+                                            hx-post="/events/{{ event.id }}/workflow/subtasks/{{ subtask.id }}/block?reason=Blocked"
+                                            hx-target="closest .task-card"
+                                            hx-swap="outerHTML">
+                                        ⛔
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Review Column -->
+                <div class="task-column" data-status="review">
+                    <div class="column-header">
+                        <span class="column-icon">👀</span>
+                        <h3>Review</h3>
+                        <span class="task-count">{{ workflow.progress.tasks.review|default(0) }}</span>
+                    </div>
+                    <div class="task-list" id="tasks-review">
+                        {% for subtask in subtasks %}
+                        {% if subtask.status == 'review' %}
+                        <div class="task-card" data-id="{{ subtask.id }}" data-phase="{{ subtask.stage.phase }}">
+                            <div class="task-header">
+                                <span class="task-priority priority-{{ subtask.priority }}">{{ subtask.priority }}</span>
+                                <span class="task-category">{{ subtask.category }}</span>
+                            </div>
+                            <h4>{{ subtask.title }}</h4>
+                            <div class="task-footer">
+                                <button class="task-action-btn"
+                                        hx-put="/events/{{ event.id }}/workflow/subtasks/{{ subtask.id }}?status=done"
+                                        hx-target="closest .task-card"
+                                        hx-swap="outerHTML">
+                                    ✅ Complete
+                                </button>
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Done Column -->
+                <div class="task-column" data-status="done">
+                    <div class="column-header">
+                        <span class="column-icon">✅</span>
+                        <h3>Done</h3>
+                        <span class="task-count">{{ workflow.progress.tasks.done|default(0) }}</span>
+                    </div>
+                    <div class="task-list" id="tasks-done">
+                        {% for subtask in subtasks %}
+                        {% if subtask.status == 'done' %}
+                        <div class="task-card completed" data-id="{{ subtask.id }}" data-phase="{{ subtask.stage.phase }}">
+                            <div class="task-header">
+                                <span class="task-priority priority-{{ subtask.priority }}">{{ subtask.priority }}</span>
+                                <span class="task-category">{{ subtask.category }}</span>
+                            </div>
+                            <h4>{{ subtask.title }}</h4>
+                            <div class="task-footer">
+                                <span class="task-completed-date">
+                                    ✅ Completed {{ subtask.completed_at.strftime('%b %d') }}
+                                </span>
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+
+<script>
+// Initialize workflow on page load if not already initialized
+async function initializeWorkflow() {
+    try {
+        const response = await fetch('/events/{{ event.id }}/workflow/initialize?event_type=meetup', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            htmx.trigger('body', 'workflowUpdated');
+            location.reload();
+        } else {
+            alert('Failed to initialize workflow');
+        }
+    } catch (error) {
+        console.error('Error initializing workflow:', error);
+        alert('Error initializing workflow');
+    }
+}
+
+// Filter tasks by phase
+function filterTasksByPhase(phase) {
+    const cards = document.querySelectorAll('.task-card');
+    cards.forEach(card => {
+        if (phase === 'all' || card.dataset.phase === phase) {
+            card.style.display = 'block';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+}
+
+// Timeline filter functionality
+document.querySelectorAll('.timeline-filters .filter-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        document.querySelectorAll('.timeline-filters .filter-btn').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        
+        const filter = this.dataset.filter;
+        document.querySelectorAll('.timeline-item').forEach(item => {
+            if (filter === 'all' || item.dataset.type === filter) {
+                item.style.display = 'block';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+    });
+});
+
+// Auto-refresh progress every 30 seconds
+setInterval(() => {
+    htmx.trigger('#workflow-summary', 'workflowUpdated');
+}, 30000);
+</script>
+
+<style>
+/* Workflow Page Styles */
+.event-workflow-page {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.workflow-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 24px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.event-info h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #111827;
+    margin: 0 0 8px 0;
+}
+
+.event-meta {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.event-meta span {
+    font-size: 0.875rem;
+    color: #6b7280;
+}
+
+.event-meta .status {
+    padding: 4px 12px;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.status-planning { background: #fef3c7; color: #92400e; }
+.status-scheduled { background: #dbeafe; color: #1e40af; }
+.status-completed { background: #d1fae5; color: #065f46; }
+
+/* Workflow Summary Cards */
+.workflow-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.summary-card {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.summary-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.summary-card.warning {
+    border-left: 4px solid #f59e0b;
+}
+
+.summary-icon {
+    font-size: 2rem;
+}
+
+.summary-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.summary-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #111827;
+}
+
+.summary-label {
+    font-size: 0.875rem;
+    color: #6b7280;
+}
+
+/* AI Suggestions Panel */
+.ai-suggestions-panel {
+    background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 24px;
+    border: 1px solid #bae6fd;
+}
+
+.suggestions-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.ai-icon {
+    font-size: 1.5rem;
+}
+
+.suggestions-header h3 {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #0c4a6e;
+    margin: 0;
+}
+
+.suggestions-content {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.suggestion {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 16px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.suggestion.warning {
+    background: #fffbeb;
+    border-left: 4px solid #f59e0b;
+}
+
+.suggestion-icon {
+    font-size: 1.25rem;
+}
+
+.suggestion p {
+    margin: 0;
+    font-size: 0.875rem;
+    color: #374151;
+}
+
+/* Workflow Progress Bar */
+.workflow-progress-section {
+    background: white;
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.workflow-progress-section h2 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0 0 20px 0;
+    color: #111827;
+}
+
+.workflow-progress-bar {
+    display: flex;
+    gap: 4px;
+    background: #f3f4f6;
+    border-radius: 12px;
+    padding: 4px;
+    overflow: hidden;
+}
+
+.progress-phase {
+    flex: 1;
+    min-width: 100px;
+    padding: 16px 12px;
+    text-align: center;
+    background: white;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.progress-phase::before {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: var(--phase-color);
+    opacity: 0.3;
+}
+
+.progress-phase.active::before {
+    opacity: 1;
+}
+
+.progress-phase.completed {
+    background: #f0fdf4;
+}
+
+.progress-phase.completed::before {
+    background: #22c55e;
+}
+
+.phase-icon {
+    font-size: 1.5rem;
+    margin-bottom: 8px;
+}
+
+.phase-info {
+    margin-bottom: 8px;
+}
+
+.phase-name {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 4px;
+}
+
+.phase-progress-bar {
+    height: 6px;
+    background: #e5e7eb;
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 4px;
+}
+
+.phase-progress-fill {
+    height: 100%;
+    background: var(--phase-color);
+    border-radius: 3px;
+    transition: width 0.5s ease;
+}
+
+.phase-percent {
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: #111827;
+}
+
+.phase-tasks {
+    font-size: 0.75rem;
+    color: #6b7280;
+}
+
+/* Timeline Section */
+.timeline-section {
+    background: white;
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.section-header h2 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0;
+    color: #111827;
+}
+
+.timeline-filters, .task-filters {
+    display: flex;
+    gap: 8px;
+}
+
+.filter-btn {
+    padding: 6px 12px;
+    border: 1px solid #e5e7eb;
+    background: white;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.filter-btn:hover, .filter-btn.active {
+    background: #f3f4f6;
+    border-color: #d1d5db;
+}
+
+.filter-btn.active {
+    background: #111827;
+    color: white;
+    border-color: #111827;
+}
+
+/* Task Board Styles */
+.taskboard-section {
+    background: white;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.taskboard-section h2 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0 0 20px 0;
+}
+
+.task-columns {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+}
+
+.task-column {
+    background: #f9fafb;
+    border-radius: 12px;
+    padding: 16px;
+    min-height: 400px;
+}
+
+.column-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+.column-icon {
+    font-size: 1.25rem;
+}
+
+.column-header h3 {
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin: 0;
+    color: #374151;
+}
+
+.task-count {
+    margin-left: auto;
+    background: #e5e7eb;
+    padding: 2px 8px;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #6b7280;
+}
+
+.task-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.task-card {
+    background: white;
+    border-radius: 8px;
+    padding: 12px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    cursor: grab;
+    transition: all 0.2s;
+}
+
+.task-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    transform: translateY(-2px);
+}
+
+.task-card.completed {
+    opacity: 0.6;
+    background: #f3f4f6;
+}
+
+.task-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.task-priority {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.625rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.priority-critical { background: #fee2e2; color: #991b1b; }
+.priority-high { background: #ffedd5; color: #9a3412; }
+.priority-medium { background: #fef3c7; color: #92400e; }
+.priority-low { background: #e0e7ff; color: #3730a3; }
+
+.task-category {
+    font-size: 0.75rem;
+    color: #6b7280;
+}
+
+.task-card h4 {
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin: 0 0 8px 0;
+    color: #111827;
+}
+
+.task-description {
+    font-size: 0.75rem;
+    color: #6b7280;
+    margin: 0 0 12px 0;
+    line-height: 1.4;
+}
+
+.task-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.task-due {
+    font-size: 0.75rem;
+    color: #6b7280;
+}
+
+.task-due.overdue {
+    color: #dc2626;
+    font-weight: 600;
+}
+
+.task-actions, .task-action-btn {
+    display: flex;
+    gap: 4px;
+}
+
+.task-action-btn {
+    padding: 4px 8px;
+    border: none;
+    background: #f3f4f6;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.task-action-btn:hover {
+    background: #e5e7eb;
+}
+
+.task-completed-date {
+    font-size: 0.75rem;
+    color: #22c55e;
+    font-weight: 500;
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+    .task-columns {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .workflow-header {
+        flex-direction: column;
+        gap: 16px;
+    }
+    
+    .workflow-summary {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .task-columns {
+        grid-template-columns: 1fr;
+    }
+    
+    .workflow-progress-bar {
+        flex-wrap: wrap;
+    }
+    
+    .progress-phase {
+        min-width: 45%;
+    }
+}
+</style>
+{% endblock %}

@@ -1,0 +1,668 @@
+{% extends "base.html" %}
+
+{% block title %}{{ event.title }} - Meetup Organizer{% endblock %}
+
+{% block content %}
+<div class="event-detail-page">
+    <!-- Event Hero -->
+    <header class="event-hero">
+        {% if event.image_url %}
+        <div class="event-hero-image" style="background-image: url('{{ event.image_url }}')">
+            <div class="hero-overlay"></div>
+        </div>
+        {% endif %}
+        <div class="event-hero-content">
+            <div class="breadcrumb">
+                <a href="/events">Events</a>
+                <span>/</span>
+                <span>{{ event.title }}</span>
+            </div>
+            <h1>{{ event.title }}</h1>
+            <div class="event-meta">
+                {% if event.scheduled_date %}
+                <span class="meta-item">
+                    <span class="meta-icon">📅</span>
+                    {{ event.scheduled_date.strftime('%A, %B %d, %Y at %I:%M %p') }}
+                </span>
+                {% endif %}
+                {% if event.venue %}
+                <span class="meta-item">
+                    <span class="meta-icon">📍</span>
+                    {{ event.venue.name }}, {{ event.venue.city }}
+                </span>
+                {% endif %}
+                <span class="meta-item status status-{{ event.status }}">
+                    {{ event.status }}
+                </span>
+            </div>
+            {% if event.description %}
+            <p class="event-description">{{ event.description }}</p>
+            {% endif %}
+            <div class="event-actions">
+                <a href="/events/{{ event.id }}/workflow" class="btn btn-primary btn-lg">
+                    🚀 View Workflow Tracker
+                </a>
+                <button class="btn btn-secondary btn-lg" onclick="generateEventImage()">
+                    🎨 Generate Image
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Quick Stats -->
+    <div class="quick-stats">
+        <div class="stat-card">
+            <span class="stat-value">{{ event.tasks|length }}</span>
+            <span class="stat-label">Total Tasks</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-value">{{ event.organizers|length }}</span>
+            <span class="stat-label">Organizers</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-value">{{ event.marketing_materials|length }}</span>
+            <span class="stat-label">Marketing Items</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-value">{{ event.event_sponsors|length }}</span>
+            <span class="stat-label">Sponsors</span>
+        </div>
+    </div>
+
+    <!-- Main Content Grid -->
+    <div class="content-grid">
+        <!-- Left Column -->
+        <div class="main-content">
+            <!-- Event Details Card -->
+            <section class="card">
+                <div class="card-header">
+                    <h2>📋 Event Details</h2>
+                </div>
+                <div class="card-body">
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <span class="detail-label">Topic</span>
+                            <span class="detail-value">{{ event.topic or 'Not set' }}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Format</span>
+                            <span class="detail-value">{{ event.event_format or 'Not specified' }}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Created</span>
+                            <span class="detail-value">{{ event.created_at.strftime('%B %d, %Y') }}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Last Updated</span>
+                            <span class="detail-value">
+                                {% if event.updated_at %}
+                                {{ event.updated_at.strftime('%B %d, %Y') }}
+                                {% else %}
+                                Never
+                                {% endif %}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Quick Tasks -->
+            <section class="card">
+                <div class="card-header">
+                    <h2>✅ Quick Tasks</h2>
+                    <a href="/kanban/{{ event.id }}" class="btn btn-sm">View All</a>
+                </div>
+                <div class="card-body">
+                    {% if event.tasks and event.tasks|length > 0 %}
+                    <div class="task-list">
+                        {% for task in event.tasks[:5] %}
+                        <div class="task-item">
+                            <span class="task-status status-{{ task.status }}">{{ task.status }}</span>
+                            <span class="task-title">{{ task.title }}</span>
+                            {% if task.due_date %}
+                            <span class="task-due">{{ task.due_date.strftime('%b %d') }}</span>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="empty-state">
+                        <p>No tasks yet. Create tasks in the kanban board.</p>
+                        <a href="/kanban/{{ event.id }}" class="btn btn-primary">Open Kanban</a>
+                    </div>
+                    {% endif %}
+                </div>
+            </section>
+
+            <!-- Marketing Materials -->
+            <section class="card">
+                <div class="card-header">
+                    <h2>📢 Marketing Materials</h2>
+                    <a href="/marketing/{{ event.id }}" class="btn btn-sm">View All</a>
+                </div>
+                <div class="card-body">
+                    {% if event.marketing_materials and event.marketing_materials|length > 0 %}
+                    <div class="materials-grid">
+                        {% for material in event.marketing_materials[:3] %}
+                        <div class="material-card">
+                            <span class="material-type">{{ material.material_type }}</span>
+                            <h4>{{ material.title }}</h4>
+                            <p>{{ material.content|truncate(100) }}</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="empty-state">
+                        <p>No marketing materials yet.</p>
+                        <a href="/marketing/{{ event.id }}" class="btn btn-primary">Create Materials</a>
+                    </div>
+                    {% endif %}
+                </div>
+            </section>
+        </div>
+
+        <!-- Right Column -->
+        <div class="sidebar">
+            <!-- Organizers -->
+            <section class="card">
+                <div class="card-header">
+                    <h2>👥 Organizers</h2>
+                </div>
+                <div class="card-body">
+                    {% if event.organizers and event.organizers|length > 0 %}
+                    <div class="organizer-list">
+                        {% for organizer in event.organizers %}
+                        <div class="organizer-item">
+                            <div class="organizer-avatar">
+                                {{ organizer.user.username[:2]|upper }}
+                            </div>
+                            <div class="organizer-info">
+                                <span class="organizer-name">{{ organizer.user.username }}</span>
+                                <span class="organizer-role">{{ organizer.role }}</span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="empty-text">No organizers assigned.</p>
+                    {% endif %}
+                </div>
+            </section>
+
+            <!-- Sponsors -->
+            <section class="card">
+                <div class="card-header">
+                    <h2>🤝 Sponsors</h2>
+                </div>
+                <div class="card-body">
+                    {% if event.event_sponsors and event.event_sponsors|length > 0 %}
+                    <div class="sponsor-list">
+                        {% for event_sponsor in event.event_sponsors %}
+                        <div class="sponsor-item">
+                            <span class="sponsor-level">{{ event_sponsor.sponsorship_level }}</span>
+                            <span class="sponsor-name">{{ event_sponsor.sponsor.name }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="empty-text">No sponsors yet.</p>
+                    <a href="/sponsors" class="btn btn-sm btn-secondary">Add Sponsors</a>
+                    {% endif %}
+                </div>
+            </section>
+
+            <!-- Integrations -->
+            <section class="card">
+                <div class="card-header">
+                    <h2>🔗 Integrations</h2>
+                </div>
+                <div class="card-body">
+                    <div class="integration-list">
+                        <div class="integration-item">
+                            <span class="integration-name">Meetup</span>
+                            {% if event.meetup_id %}
+                            <span class="integration-status connected">Connected</span>
+                            {% else %}
+                            <button class="btn btn-sm" 
+                                    hx-post="/events/{{ event.id }}/meetup"
+                                    hx-target="this">
+                                Connect
+                            </button>
+                            {% endif %}
+                        </div>
+                        <div class="integration-item">
+                            <span class="integration-name">Luma</span>
+                            {% if event.luma_id %}
+                            <span class="integration-status connected">Connected</span>
+                            {% else %}
+                            <button class="btn btn-sm"
+                                    hx-post="/events/{{ event.id }}/luma"
+                                    hx-target="this">
+                                Connect
+                            </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+
+<script>
+async function generateEventImage() {
+    try {
+        const response = await fetch('/events/{{ event.id }}/generate-image', {
+            method: 'POST'
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            alert('Image generated! URL: ' + data.image_url);
+            location.reload();
+        } else {
+            const error = await response.json();
+            alert('Error: ' + error.detail);
+        }
+    } catch (error) {
+        console.error('Error generating image:', error);
+        alert('Error generating image');
+    }
+}
+</script>
+
+<style>
+/* Event Detail Page Styles */
+.event-detail-page {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.event-hero {
+    position: relative;
+    border-radius: 16px;
+    overflow: hidden;
+    margin-bottom: 24px;
+    background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%);
+    color: white;
+}
+
+.event-hero-image {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-size: cover;
+    background-position: center;
+    opacity: 0.3;
+}
+
+.hero-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.3), rgba(0,0,0,0.7));
+}
+
+.event-hero-content {
+    position: relative;
+    padding: 40px;
+}
+
+.breadcrumb {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    font-size: 0.875rem;
+}
+
+.breadcrumb a {
+    color: rgba(255,255,255,0.7);
+    text-decoration: none;
+}
+
+.breadcrumb a:hover {
+    color: white;
+}
+
+.breadcrumb span {
+    color: rgba(255,255,255,0.5);
+}
+
+.event-hero-content h1 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin: 0 0 16px 0;
+}
+
+.event-hero-content .event-meta {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+}
+
+.meta-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 1rem;
+    color: rgba(255,255,255,0.9);
+}
+
+.meta-icon {
+    font-size: 1.25rem;
+}
+
+.event-hero-content .event-description {
+    font-size: 1.125rem;
+    color: rgba(255,255,255,0.8);
+    margin: 0 0 24px 0;
+    max-width: 800px;
+    line-height: 1.6;
+}
+
+.event-actions {
+    display: flex;
+    gap: 12px;
+}
+
+.btn-lg {
+    padding: 12px 24px;
+    font-size: 1rem;
+}
+
+/* Quick Stats */
+.quick-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.stat-card {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.stat-value {
+    display: block;
+    font-size: 2rem;
+    font-weight: 700;
+    color: #111827;
+}
+
+.stat-label {
+    font-size: 0.875rem;
+    color: #6b7280;
+}
+
+/* Content Grid */
+.content-grid {
+    display: grid;
+    grid-template-columns: 1fr 350px;
+    gap: 24px;
+}
+
+@media (max-width: 1024px) {
+    .content-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Card Styles */
+.card {
+    background: white;
+    border-radius: 12px;
+    margin-bottom: 24px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.card-header h2 {
+    font-size: 1.125rem;
+    font-weight: 600;
+    margin: 0;
+    color: #111827;
+}
+
+.card-body {
+    padding: 20px;
+}
+
+/* Detail Grid */
+.detail-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+}
+
+.detail-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.detail-label {
+    font-size: 0.75rem;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.detail-value {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #111827;
+}
+
+/* Task List */
+.task-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.task-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: #f9fafb;
+    border-radius: 8px;
+}
+
+.task-status {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.625rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.status-todo { background: #fee2e2; color: #991b1b; }
+.status-in_progress { background: #fef3c7; color: #92400e; }
+.status-review { background: #dbeafe; color: #1e40af; }
+.status-done { background: #d1fae5; color: #065f46; }
+
+.task-title {
+    flex: 1;
+    font-size: 0.875rem;
+    color: #374151;
+}
+
+.task-due {
+    font-size: 0.75rem;
+    color: #6b7280;
+}
+
+/* Organizer List */
+.organizer-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.organizer-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.organizer-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #3b82f6;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 0.875rem;
+}
+
+.organizer-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.organizer-name {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #111827;
+}
+
+.organizer-role {
+    font-size: 0.75rem;
+    color: #6b7280;
+}
+
+/* Sponsor List */
+.sponsor-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.sponsor-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: #f9fafb;
+    border-radius: 6px;
+}
+
+.sponsor-level {
+    font-size: 0.75rem;
+    padding: 2px 8px;
+    background: #fef3c7;
+    color: #92400e;
+    border-radius: 4px;
+    text-transform: capitalize;
+}
+
+.sponsor-name {
+    font-size: 0.875rem;
+    color: #374151;
+}
+
+/* Integration List */
+.integration-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.integration-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.integration-name {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #374151;
+}
+
+.integration-status {
+    font-size: 0.75rem;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.integration-status.connected {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+/* Empty State */
+.empty-state {
+    text-align: center;
+    padding: 24px;
+}
+
+.empty-state p {
+    color: #6b7280;
+    margin-bottom: 16px;
+}
+
+.empty-text {
+    color: #6b7280;
+    font-size: 0.875rem;
+    margin: 0;
+}
+
+/* Materials Grid */
+.materials-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+}
+
+.material-card {
+    padding: 16px;
+    background: #f9fafb;
+    border-radius: 8px;
+}
+
+.material-type {
+    font-size: 0.625rem;
+    padding: 2px 8px;
+    background: #dbeafe;
+    color: #1e40af;
+    border-radius: 4px;
+    text-transform: uppercase;
+}
+
+.material-card h4 {
+    font-size: 0.875rem;
+    margin: 8px 0;
+    color: #111827;
+}
+
+.material-card p {
+    font-size: 0.75rem;
+    color: #6b7280;
+    margin: 0;
+    line-height: 1.4;
+}
+</style>
+{% endblock %}
