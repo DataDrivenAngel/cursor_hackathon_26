@@ -85,7 +85,7 @@ class WorkflowService:
         # Get all stages
         stages_result = await self.db.execute(
             select(WorkflowStage)
-            .options(selectinload(WorkflowSubtask))
+            .options(selectinload(WorkflowStage.subtasks))
             .where(WorkflowStage.event_id == event_id)
             .order_by(WorkflowStage.order)
         )
@@ -171,7 +171,7 @@ class WorkflowService:
         upcoming_milestone = None
         for milestone in milestones:
             if not milestone.is_completed and milestone.due_date > now:
-                upcoming_milestone = milestone.due_date.isoformat()
+                upcoming_milestone = milestone.due_date
                 break
         
         # Check if on track
@@ -240,7 +240,7 @@ class WorkflowService:
         # Get all stages
         stages_result = await self.db.execute(
             select(WorkflowStage)
-            .options(selectinload(WorkflowSubtask))
+            .options(selectinload(WorkflowStage.subtasks))
             .where(WorkflowStage.event_id == event_id)
             .order_by(WorkflowStage.order)
         )
@@ -487,8 +487,7 @@ class WorkflowService:
         stages_result = await self.db.execute(
             select(WorkflowStage)
             .options(
-                selectinload(WorkflowSubtask),
-                selectinload(WorkflowStage).selectinload(EventMilestone)
+                selectinload(WorkflowStage.subtasks)
             )
             .where(WorkflowStage.event_id == event_id)
             .order_by(WorkflowStage.order)
