@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}Marketing - Meetup Organizer{% endblock %}
+
+{% block content %}
+<div class="marketing-page">
+    <header class="page-header">
+        <h1>Marketing Materials</h1>
+    </header>
+    
+    <div class="marketing-container">
+        <!-- Event Selection -->
+        <section class="event-selection">
+            <h2>Select Event</h2>
+            <select id="event-select" hx-get="/marketing" hx-trigger="change" hx-target="#materials-list">
+                <option value="">Choose an event...</option>
+                {% for event in events %}
+                <option value="{{ event.id }}">{{ event.title }}</option>
+                {% endfor %}
+            </select>
+        </section>
+        
+        <!-- Materials List -->
+        <section id="materials-list" class="materials-section">
+            <p class="placeholder-text">Select an event to view and create marketing materials.</p>
+        </section>
+        
+        <!-- Generation Section -->
+        <section class="generation-section">
+            <h2>Generate New Material</h2>
+            <div class="generation-form">
+                <input type="hidden" id="gen-event-id" name="event_id">
+                
+                <div class="form-group">
+                    <label for="material-type">Material Type</label>
+                    <select id="material-type" name="material_type">
+                        <option value="post">Social Media Post</option>
+                        <option value="email">Email Announcement</option>
+                        <option value="social">Social Media Update</option>
+                    </select>
+                </div>
+                
+                <button type="button" 
+                        class="btn btn-primary"
+                        hx-post="/marketing"
+                        hx-target="#materials-list"
+                        hx-include="#event-select, #material-type">
+                    Generate Material
+                </button>
+            </div>
+        </section>
+    </div>
+    
+    <!-- Material Editor Modal -->
+    <dialog id="edit-material-modal">
+        <div class="editor-content">
+            <h2>Edit Marketing Material</h2>
+            <textarea id="material-content" rows="10"></textarea>
+            <div class="form-actions">
+                <button class="btn btn-secondary" onclick="closeEditor()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveMaterial()">Save Changes</button>
+            </div>
+        </div>
+    </dialog>
+</div>
+
+<script>
+    // Update hidden input when event is selected
+    document.getElementById('event-select').addEventListener('change', function() {
+        document.getElementById('gen-event-id').value = this.value;
+    });
+    
+    function editMaterial(materialId) {
+        const modal = document.getElementById('edit-material-modal');
+        const content = document.getElementById(`material-${materialId}`).textContent;
+        document.getElementById('material-content').value = content;
+        modal.dataset.materialId = materialId;
+        modal.showModal();
+    }
+    
+    function closeEditor() {
+        document.getElementById('edit-material-modal').close();
+    }
+    
+    function saveMaterial() {
+        const modal = document.getElementById('edit-material-modal');
+        const materialId = modal.dataset.materialId;
+        const content = document.getElementById('material-content').value;
+        
+        htmx.ajax('PUT', `/marketing/${materialId}`, {
+            body: { content: content },
+            target: `#material-${materialId}`
+        });
+        
+        closeEditor();
+    }
+    
+    // Copy to clipboard functionality
+    function copyToClipboard(materialId) {
+        const content = document.getElementById(`material-${materialId}`).textContent;
+        navigator.clipboard.writeText(content).then(() => {
+            alert('Copied to clipboard!');
+        });
+    }
+</script>
+{% endblock %}

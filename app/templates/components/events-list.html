@@ -1,0 +1,32 @@
+{% for event in events %}
+<div class="event-card" data-status="{{ event.status }}">
+    <div class="event-header">
+        <h3>{{ event.title }}</h3>
+        <span class="event-status status-{{ event.status }}">{{ event.status }}</span>
+    </div>
+    <p class="event-description">{{ event.description or "No description" }}</p>
+    <div class="event-meta">
+        <span class="event-topic">{{ event.topic or "No topic" }}</span>
+        <span class="event-date">
+            {% if event.scheduled_date %}
+            {{ event.scheduled_date.strftime('%B %d, %Y') }}
+            {% else %}
+            Date TBD
+            {% endif %}
+        </span>
+    </div>
+    <div class="event-actions">
+        <a href="/events/{{ event.id }}/page" class="btn btn-sm">View Details</a>
+        <button class="btn btn-sm btn-secondary" 
+                hx-delete="/events/{{ event.id }}"
+                hx-confirm="Are you sure you want to delete this event?"
+                hx-target="closest .event-card">
+            Delete
+        </button>
+    </div>
+</div>
+{% else %}
+<div class="empty-state">
+    <p>No events found. Create your first event!</p>
+</div>
+{% endfor %}

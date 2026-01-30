@@ -1,0 +1,996 @@
+#!/usr/bin/env python3
+"""
+Populate database with synthetic test data for Data & AI events.
+Run this script to set up test data for local development.
+"""
+import asyncio
+import sys
+from datetime import datetime, timedelta
+from pathlib import Path
+
+# Add project root to path
+PROJECT_ROOT = Path(__file__).parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from app.database.connection import engine, async_session_factory
+from app.models.database_models import (
+    User, Event, Organizer, Venue, Speaker, Task, Sponsor, 
+    EventSponsor, MarketingMaterial, AgentWorkflow, Permission,
+    AttendeeProfile, EventAttendee
+)
+from app.models.workflow_models import (
+    EventWorkflowProgress, WorkflowStage, WorkflowSubtask, 
+    EventMilestone, WorkflowTemplate, PhaseStatus, TaskStatus, TaskPriority
+)
+from app.services.workflow_templates import (
+    SUBTASK_TEMPLATES, MILESTONE_TEMPLATES, PHASE_CONFIG,
+    get_workflow_template, generate_milestones_for_event
+)
+
+
+async def get_session():
+    """Get a database session."""
+    async with async_session_factory() as session:
+        yield session
+
+
+# Sample Data & AI Topics
+TOPICS = [
+    "Machine Learning",
+    "Deep Learning",
+    "Natural Language Processing",
+    "Computer Vision",
+    "AI Ethics",
+    "Data Engineering",
+    "MLOps",
+    "Reinforcement Learning",
+    "Transformer Models",
+    "Generative AI",
+    "Large Language Models",
+    "Neural Networks",
+    "AutoML",
+    "Edge AI",
+    "AI in Healthcare"
+]
+
+# Sample Event Titles
+EVENT_TITLES = [
+    "Introduction to Machine Learning",
+    "Deep Learning Workshop",
+    "NLP with Python",
+    "Computer Vision Fundamentals",
+    "AI Ethics and Responsible AI",
+    "Data Engineering at Scale",
+    "MLOps Best Practices",
+    "Reinforcement Learning Lab",
+    "Building with Transformers",
+    "Generative AI Hackathon",
+    "LLM Fine-tuning Workshop",
+    "Neural Networks from Scratch",
+    "AutoML Deep Dive",
+    "Edge AI Deployment",
+    "AI in Healthcare Summit"
+]
+
+# Sample Speaker Data
+SPEAKERS = [
+    {
+        "name": "Dr. Sarah Chen",
+        "email": "sarah.chen@aiml.example.com",
+        "bio": "Senior Research Scientist at AI Lab. PhD in Machine Learning from Stanford. Specializes in deep learning and neural networks.",
+        "expertise": ["Machine Learning", "Deep Learning", "Neural Networks"],
+        "company": "AI Lab",
+        "role": "Research Scientist"
+    },
+    {
+        "name": "Marcus Johnson",
+        "email": "marcus.j@dataengine.example.com",
+        "bio": "Data Engineering Lead with 10+ years experience. Former Google engineer. Passionate about scalable data pipelines.",
+        "expertise": ["Data Engineering", "Apache Spark", "Data Pipelines"],
+        "company": "DataEngine Inc",
+        "role": "Data Engineering Lead"
+    },
+    {
+        "name": "Dr. Emily Rodriguez",
+        "email": "emily.r@nlp.example.com",
+        "bio": "NLP Researcher and author of 'Practical NLP'. PhD from MIT. Expert in transformer models and language understanding.",
+        "expertise": ["Natural Language Processing", "Transformers", "LLMs"],
+        "company": "NLP Research Lab",
+        "role": "Principal Researcher"
+    },
+    {
+        "name": "David Kim",
+        "email": "david.kim@cv.example.com",
+        "bio": "Computer Vision Engineer at Vision AI. Previously at Tesla Autopilot. Focus on real-time object detection.",
+        "expertise": ["Computer Vision", "Object Detection", "Autonomous Systems"],
+        "company": "Vision AI",
+        "role": "Senior Engineer"
+    },
+    {
+        "name": "Dr. Amanda Foster",
+        "email": "amanda.foster@ethics.example.com",
+        "bio": "AI Ethics researcher and advocate. Professor at Berkeley. Author of 'The Ethical AI Handbook'.",
+        "expertise": ["AI Ethics", "Responsible AI", "AI Policy"],
+        "company": "UC Berkeley",
+        "role": "Associate Professor"
+    },
+    {
+        "name": "James Wilson",
+        "email": "james.wilson@mlops.example.com",
+        "bio": "MLOps Architect. Helps companies deploy ML models at scale. Maintainer of popular open-source ML tools.",
+        "expertise": ["MLOps", "Kubernetes", "Model Deployment"],
+        "company": "MLOps Solutions",
+        "role": "Solutions Architect"
+    },
+    {
+        "name": "Dr. Priya Sharma",
+        "email": "priya.s@genai.example.com",
+        "bio": "Generative AI specialist. Created viral AI art tools. Previously at OpenAI. Expert in diffusion models.",
+        "expertise": ["Generative AI", "Diffusion Models", "Image Generation"],
+        "company": "Creative AI Labs",
+        "role": "CTO"
+    },
+    {
+        "name": "Michael Torres",
+        "email": "michael.t@healthcare.ai",
+        "bio": "AI in Healthcare pioneer. Developed FDA-approved diagnostic tools. Medical doctor and AI researcher.",
+        "expertise": ["AI in Healthcare", "Medical AI", "Diagnostic Systems"],
+        "company": "HealthAI Medical",
+        "role": "Chief Medical Officer"
+    }
+]
+
+# Sample Venues
+VENUES = [
+    {
+        "name": "TechHub Conference Center",
+        "address": "123 Innovation Drive",
+        "city": "San Francisco",
+        "state": "CA",
+        "country": "USA",
+        "capacity": 200,
+        "amenities": ["WiFi", "Projector", "Whiteboard", "Coffee", "Parking"],
+        "contact_email": "events@techhub.example.com",
+        "contact_phone": "+1-415-555-0100",
+        "website": "https://techhub.example.com"
+    },
+    {
+        "name": "AI Research Lab Auditorium",
+        "address": "456 Neural Network Lane",
+        "city": "Palo Alto",
+        "state": "CA",
+        "country": "USA",
+        "capacity": 150,
+        "amenities": ["WiFi", "Video Recording", "Livestream", "Whiteboard"],
+        "contact_email": "talks@airesearch.example.com",
+        "contact_phone": "+1-650-555-0200",
+        "website": "https://airesearch.example.com"
+    },
+    {
+        "name": "The Data Center",
+        "address": "789 Pipeline Blvd",
+        "city": "San Jose",
+        "state": "CA",
+        "country": "USA",
+        "capacity": 100,
+        "amenities": ["WiFi", "Projector", "Kitchen", "Parking"],
+        "contact_email": "hello@thedatacenter.example.com",
+        "contact_phone": "+1-408-555-0300",
+        "website": "https://thedatacenter.example.com"
+    },
+    {
+        "name": "Startup Campus",
+        "address": "321 Venture Way",
+        "city": "Mountain View",
+        "state": "CA",
+        "country": "USA",
+        "capacity": 80,
+        "amenities": ["WiFi", "Whiteboard", "Coffee", "Snacks"],
+        "contact_email": "events@startupcampus.example.com",
+        "contact_phone": "+1-650-555-0400",
+        "website": "https://startupcampus.example.com"
+    },
+    {
+        "name": "University Hall",
+        "address": "100 Academic Way",
+        "city": "Berkeley",
+        "state": "CA",
+        "country": "USA",
+        "capacity": 300,
+        "amenities": ["WiFi", "AV System", "Stage", "Wheelchair Access"],
+        "contact_email": "conference@university.example.edu",
+        "contact_phone": "+1-510-555-0500",
+        "website": "https://university.example.edu"
+    }
+]
+
+# Sample Sponsors
+SPONSORS = [
+    {
+        "name": "TechCorp Industries",
+        "contact_email": "sponsors@techcorp.example.com",
+        "contact_phone": "+1-800-555-1000",
+        "website": "https://techcorp.example.com",
+        "description": "Leading technology company focused on AI and cloud solutions"
+    },
+    {
+        "name": "DataFlow Systems",
+        "contact_email": "events@dataflow.example.com",
+        "contact_phone": "+1-800-555-2000",
+        "website": "https://dataflow.example.com",
+        "description": "Enterprise data pipeline and analytics platform"
+    },
+    {
+        "name": "CloudScale",
+        "contact_email": "community@cloudscale.example.com",
+        "contact_phone": "+1-800-555-3000",
+        "website": "https://cloudscale.example.com",
+        "description": "Cloud infrastructure for AI workloads"
+    },
+    {
+        "name": "AI Ventures",
+        "contact_email": "hello@aiventures.example.com",
+        "contact_phone": "+1-800-555-4000",
+        "website": "https://aiventures.example.com",
+        "description": "Venture capital firm investing in AI startups"
+    },
+    {
+        "name": "DevTools Inc",
+        "contact_email": "sponsors@devtools.example.com",
+        "contact_phone": "+1-800-555-5000",
+        "website": "https://devtools.example.com",
+        "description": "Developer tools and productivity platforms"
+    }
+]
+
+
+async def create_users(session):
+    """Create test users if they don't exist."""
+    print("Checking and creating users...")
+    
+    users = [
+        User(
+            username="admin",
+            email="admin@example.com",
+            role="admin",
+            is_active=True
+        ),
+        User(
+            username="organizer1",
+            email="organizer1@example.com",
+            role="organizer",
+            is_active=True
+        ),
+        User(
+            username="organizer2",
+            email="organizer2@example.com",
+            role="organizer",
+            is_active=True
+        ),
+        User(
+            username="assistant",
+            email="assistant@example.com",
+            role="assistant",
+            is_active=True
+        )
+    ]
+    
+    created_users = []
+    for user in users:
+        # Check if user already exists
+        from sqlalchemy import select
+        result = await session.execute(
+            select(User).where(User.username == user.username)
+        )
+        existing_user = result.scalar_one_or_none()
+        
+        if existing_user:
+            print(f"  - User '{user.username}' already exists, skipping")
+        else:
+            session.add(user)
+            created_users.append(user)
+            print(f"  - Created user '{user.username}'")
+    
+    if created_users:
+        await session.commit()
+        print(f"✓ Created {len(created_users)} new users")
+    else:
+        print("✓ All users already exist, no new users created")
+    
+    # Return all users for downstream functions to use
+    result = await session.execute(select(User))
+    return result.scalars().all()
+
+
+async def create_venues(session):
+    """Create test venues if they don't exist."""
+    print("Checking and creating venues...")
+    
+    venues = []
+    for venue_data in VENUES:
+        from sqlalchemy import select
+        # Check if venue already exists by name
+        result = await session.execute(
+            select(Venue).where(Venue.name == venue_data["name"])
+        )
+        existing_venue = result.scalar_one_or_none()
+        
+        if existing_venue:
+            print(f"  - Venue '{venue_data['name']}' already exists, skipping")
+            venues.append(existing_venue)
+        else:
+            venue = Venue(
+                name=venue_data["name"],
+                address=venue_data["address"],
+                city=venue_data["city"],
+                state=venue_data["state"],
+                country=venue_data["country"],
+                capacity=venue_data["capacity"],
+                amenities=",".join(venue_data["amenities"]),
+                contact_email=venue_data["contact_email"],
+                contact_phone=venue_data["contact_phone"],
+                website=venue_data["website"],
+                created_by=1  # admin user
+            )
+            session.add(venue)
+            venues.append(venue)
+            print(f"  - Created venue '{venue_data['name']}'")
+    
+    if not any(v.id is None for v in venues):
+        await session.commit()
+    
+    # Refresh to get IDs for newly created venues
+    for venue in venues:
+        if venue.id is None:
+            await session.refresh(venue)
+    
+    new_count = sum(1 for v in venues if v.id is not None)
+    print(f"✓ {new_count} new venues created, {len(venues) - new_count} already existed")
+    return venues
+
+
+async def create_speakers(session):
+    """Create test speakers if they don't exist."""
+    print("Checking and creating speakers...")
+    
+    speakers = []
+    for speaker_data in SPEAKERS:
+        from sqlalchemy import select
+        # Check if speaker already exists by email
+        result = await session.execute(
+            select(Speaker).where(Speaker.email == speaker_data["email"])
+        )
+        existing_speaker = result.scalar_one_or_none()
+        
+        if existing_speaker:
+            print(f"  - Speaker '{speaker_data['name']}' already exists, skipping")
+            speakers.append(existing_speaker)
+        else:
+            speaker = Speaker(
+                name=speaker_data["name"],
+                email=speaker_data["email"],
+                bio=speaker_data["bio"],
+                expertise=",".join(speaker_data["expertise"]),
+                company=speaker_data["company"],
+                role=speaker_data["role"],
+                created_by=1
+            )
+            session.add(speaker)
+            speakers.append(speaker)
+            print(f"  - Created speaker '{speaker_data['name']}'")
+    
+    if not any(s.id is None for s in speakers):
+        await session.commit()
+    
+    # Refresh to get IDs for newly created speakers
+    for speaker in speakers:
+        if speaker.id is None:
+            await session.refresh(speaker)
+    
+    new_count = sum(1 for s in speakers if s.id is not None)
+    print(f"✓ {new_count} new speakers created, {len(speakers) - new_count} already existed")
+    return speakers
+
+
+async def create_sponsors(session):
+    """Create test sponsors if they don't exist."""
+    print("Checking and creating sponsors...")
+    
+    sponsors = []
+    for sponsor_data in SPONSORS:
+        from sqlalchemy import select
+        # Check if sponsor already exists by name
+        result = await session.execute(
+            select(Sponsor).where(Sponsor.name == sponsor_data["name"])
+        )
+        existing_sponsor = result.scalar_one_or_none()
+        
+        if existing_sponsor:
+            print(f"  - Sponsor '{sponsor_data['name']}' already exists, skipping")
+            sponsors.append(existing_sponsor)
+        else:
+            sponsor = Sponsor(
+                name=sponsor_data["name"],
+                contact_email=sponsor_data["contact_email"],
+                contact_phone=sponsor_data["contact_phone"],
+                website=sponsor_data["website"],
+                description=sponsor_data["description"],
+                created_by=1
+            )
+            session.add(sponsor)
+            sponsors.append(sponsor)
+            print(f"  - Created sponsor '{sponsor_data['name']}'")
+    
+    if not any(s.id is None for s in sponsors):
+        await session.commit()
+    
+    # Refresh to get IDs for newly created sponsors
+    for sponsor in sponsors:
+        if sponsor.id is None:
+            await session.refresh(sponsor)
+    
+    new_count = sum(1 for s in sponsors if s.id is not None)
+    print(f"✓ {new_count} new sponsors created, {len(sponsors) - new_count} already existed")
+    return sponsors
+
+
+async def create_events(session, users, venues):
+    """Create test events."""
+    print("Creating events...")
+    
+    events = []
+    now = datetime.utcnow()
+    
+    # Create events over the next 3 months
+    for i, title in enumerate(EVENT_TITLES):
+        # Mix of scheduled and planning events
+        status = "scheduled" if i < 5 else "planning"
+        
+        # Schedule dates from now to 3 months in the future
+        scheduled_date = now + timedelta(days=i*7 + 3)
+        
+        event = Event(
+            title=title,
+            description=f"Join us for an in-depth exploration of {TOPICS[i % len(TOPICS)]}. This event features talks from industry experts, hands-on workshops, and networking opportunities.",
+            topic=TOPICS[i % len(TOPICS)],
+            status=status,
+            scheduled_date=scheduled_date,
+            venue_id=venues[i % len(venues)].id if status == "scheduled" else None,
+            created_by=users[i % len(users)].id
+        )
+        
+        session.add(event)
+        events.append(event)
+    
+    await session.commit()
+    
+    # Refresh to get IDs
+    for event in events:
+        await session.refresh(event)
+    
+    print(f"✓ Created {len(events)} events")
+    return events
+
+
+async def create_organizers(session, users, events):
+    """Create event organizers."""
+    print("Creating organizers...")
+    
+    organizers = []
+    for i, event in enumerate(events):
+        # First user is primary organizer for all events
+        organizer = Organizer(
+            user_id=1,  # admin user
+            event_id=event.id,
+            role="primary"
+        )
+        session.add(organizer)
+        organizers.append(organizer)
+        
+        # Add second organizer for some events
+        if i < len(events) // 2:
+            organizer = Organizer(
+                user_id=2,  # organizer1
+                event_id=event.id,
+                role="assistant"
+            )
+            session.add(organizer)
+            organizers.append(organizer)
+    
+    await session.commit()
+    print(f"✓ Created {len(organizers)} organizer relationships")
+    return organizers
+
+
+async def create_event_sponsors(session, events, sponsors):
+    """Link sponsors to events."""
+    print("Creating event sponsorships...")
+    
+    event_sponsors = []
+    sponsorship_levels = ["gold", "silver", "bronze"]
+    
+    for i, event in enumerate(events):
+        # Add 2-3 sponsors per event
+        num_sponsors = min(2 + i % 2, len(sponsors))
+        for j in range(num_sponsors):
+            sponsor = sponsors[(i + j) % len(sponsors)]
+            event_sponsor = EventSponsor(
+                event_id=event.id,
+                sponsor_id=sponsor.id,
+                sponsorship_level=sponsorship_levels[j % len(sponsorship_levels)],
+                notes=f"Sponsorship for {event.title}"
+            )
+            session.add(event_sponsor)
+            event_sponsors.append(event_sponsor)
+    
+    await session.commit()
+    print(f"✓ Created {len(event_sponsors)} event sponsorships")
+    return event_sponsors
+
+
+async def create_tasks(session, events, users):
+    """Create sample tasks for events."""
+    print("Creating tasks...")
+    
+    tasks = []
+    task_templates = [
+        ("Send reminders to attendees", "todo"),
+        ("Prepare presentation slides", "in_progress"),
+        ("Book catering", "done"),
+        ("Set up registration desk", "todo"),
+        ("Create social media posts", "review"),
+        ("Send speaker confirmation emails", "done"),
+        ("Prepare venue equipment", "todo"),
+        ("Review budget estimates", "in_progress")
+    ]
+    
+    for i, event in enumerate(events):
+        # Create 3-5 tasks per event
+        num_tasks = 3 + i % 3
+        for j in range(num_tasks):
+            template = task_templates[(i + j) % len(task_templates)]
+            task = Task(
+                event_id=event.id,
+                title=template[0],
+                description=f"Task for {event.title}",
+                status=template[1],
+                assignee_id=users[(i + j) % len(users)].id if j % 2 == 0 else None,
+                created_by=1,
+                due_date=event.scheduled_date - timedelta(days=1) if event.scheduled_date else None
+            )
+            session.add(task)
+            tasks.append(task)
+    
+    await session.commit()
+    print(f"✓ Created {len(tasks)} tasks")
+    return tasks
+
+
+async def create_marketing_materials(session, events, users):
+    """Create sample marketing materials."""
+    print("Creating marketing materials...")
+    
+    materials = []
+    material_types = ["post", "email", "social"]
+    titles = [
+        "Announcement Post",
+        "Event Reminder Email",
+        "Social Media Blast",
+        "Speaker Feature",
+        "Last Chance Registration"
+    ]
+    
+    for i, event in enumerate(events):
+        # Create 2-3 materials per event
+        num_materials = 2 + i % 2
+        for j in range(num_materials):
+            material = MarketingMaterial(
+                event_id=event.id,
+                material_type=material_types[j % len(material_types)],
+                title=f"{event.title} - {titles[j % len(titles)]}",
+                content=f"Join us for {event.title}! {event.description[:100]}...",
+                created_by=1
+            )
+            session.add(material)
+            materials.append(material)
+    
+    await session.commit()
+    print(f"✓ Created {len(materials)} marketing materials")
+    return materials
+
+
+async def create_agent_workflows(session, events, users):
+    """Create sample agent workflows."""
+    print("Creating agent workflows...")
+    
+    workflows = []
+    workflow_types = ["venue_research", "speaker_research", "content_generation"]
+    
+    for i, event in enumerate(events[:5]):  # Only create for first 5 events
+        workflow_type = workflow_types[i % len(workflow_types)]
+        workflow = AgentWorkflow(
+            workflow_type=workflow_type,
+            event_id=event.id,
+            user_id=users[i % len(users)].id,
+            input_data=f'{{"event_id": {event.id}, "topic": "{event.topic}"}}',
+            status="completed" if i < 3 else "pending",
+            output_data='{"status": "success", "results": []}',
+            started_at=datetime.utcnow() - timedelta(hours=2),
+            completed_at=datetime.utcnow() - timedelta(hours=1) if i < 3 else None
+        )
+        session.add(workflow)
+        workflows.append(workflow)
+    
+    await session.commit()
+    print(f"✓ Created {len(workflows)} agent workflows")
+    return workflows
+
+
+async def create_workflow_templates(session):
+    """Create workflow templates for different event types."""
+    print("Creating workflow templates...")
+    
+    templates = []
+    event_types = ["meetup", "workshop", "conference"]
+    
+    for event_type in event_types:
+        template = get_workflow_template(event_type)
+        
+        # Check if template already exists
+        from sqlalchemy import select
+        result = await session.execute(
+            select(WorkflowTemplate).where(
+                WorkflowTemplate.event_type == event_type,
+                WorkflowTemplate.name == template["phases"]["ideation"]["name"] + " Template"
+            )
+        )
+        existing = result.scalar_one_or_none()
+        
+        if existing:
+            print(f"  - Template for '{event_type}' already exists, skipping")
+            templates.append(existing)
+        else:
+            workflow_template = WorkflowTemplate(
+                name=f"{event_type.title()} Event Template",
+                description=f"Complete workflow template for {event_type} events",
+                event_type=event_type,
+                phases=PHASE_CONFIG,
+                default_tasks=SUBTASK_TEMPLATES,
+                default_milestones=MILESTONE_TEMPLATES.get(event_type, []),
+                typical_duration_days=60 if event_type == "conference" else 30,
+                marketing_start_days_before=30 if event_type == "conference" else 14,
+                is_active=True
+            )
+            session.add(workflow_template)
+            templates.append(workflow_template)
+            print(f"  - Created template for '{event_type}'")
+    
+    await session.commit()
+    for template in templates:
+        if template.id is None:
+            await session.refresh(template)
+    
+    print(f"✓ Created {len([t for t in templates if t.id is not None])} workflow templates")
+    return templates
+
+
+async def create_event_workflow_progress(session, events):
+    """Create workflow progress trackers for events."""
+    print("Creating workflow progress trackers...")
+    
+    progress_records = []
+    for event in events:
+        from sqlalchemy import select
+        result = await session.execute(
+            select(EventWorkflowProgress).where(EventWorkflowProgress.event_id == event.id)
+        )
+        existing = result.scalar_one_or_none()
+        
+        if existing:
+            print(f"  - Progress tracker for event {event.id} already exists, skipping")
+            progress_records.append(existing)
+        else:
+            progress = EventWorkflowProgress(
+                event_id=event.id,
+                current_phase="ideation",
+                completion_percentage=0.0,
+                is_on_track=True,
+                total_tasks=0,
+                completed_tasks=0,
+                overdue_tasks=0,
+                blocked_tasks=0,
+                total_milestones=0,
+                completed_milestones=0
+            )
+            session.add(progress)
+            progress_records.append(progress)
+    
+    await session.commit()
+    for progress in progress_records:
+        if progress.id is None:
+            await session.refresh(progress)
+    
+    new_count = sum(1 for p in progress_records if p.id is not None)
+    print(f"✓ Created {new_count} workflow progress trackers")
+    return progress_records
+
+
+async def create_workflow_stages(session, events):
+    """Create workflow stages for all phases of each event."""
+    print("Creating workflow stages...")
+    
+    stages = []
+    phase_order = ["ideation", "logistics", "marketing", "preparation", "execution", "review"]
+    
+    for event in events:
+        for phase in phase_order:
+            from sqlalchemy import select
+            result = await session.execute(
+                select(WorkflowStage).where(
+                    WorkflowStage.event_id == event.id,
+                    WorkflowStage.phase == phase
+                )
+            )
+            existing = result.scalar_one_or_none()
+            
+            if existing:
+                stages.append(existing)
+                continue
+            
+            config = PHASE_CONFIG.get(phase, {})
+            buffer_days = config.get("typical_duration_days", 7)
+            
+            # Calculate due date based on event date
+            due_date = event.scheduled_date - timedelta(days=buffer_days) if event.scheduled_date else None
+            
+            stage = WorkflowStage(
+                event_id=event.id,
+                phase=phase,
+                status="pending",
+                progress=0.0,
+                total_tasks=0,
+                completed_tasks=0,
+                order=config.get("order", 0),
+                due_date=due_date
+            )
+            session.add(stage)
+            stages.append(stage)
+    
+    await session.commit()
+    for stage in stages:
+        if stage.id is None:
+            await session.refresh(stage)
+    
+    print(f"✓ Created {len(stages)} workflow stages")
+    return stages
+
+
+async def create_workflow_subtasks(session, events, stages):
+    """Create workflow subtasks from templates."""
+    print("Creating workflow subtasks...")
+    
+    subtasks = []
+    subtask_statuses = ["todo", "in_progress", "review", "done"]
+    
+    for event in events:
+        event_stages = [s for s in stages if s.event_id == event.id]
+        
+        for stage in event_stages:
+            phase_templates = SUBTASK_TEMPLATES.get(stage.phase, {})
+            subtask_list = phase_templates.get("subtasks", [])
+            
+            for subtask_template in subtask_list:
+                from sqlalchemy import select
+                result = await session.execute(
+                    select(WorkflowSubtask).where(
+                        WorkflowSubtask.stage_id == stage.id,
+                        WorkflowSubtask.title == subtask_template["title"]
+                    )
+                )
+                existing = result.scalar_one_or_none()
+                
+                if existing:
+                    subtasks.append(existing)
+                    continue
+                
+                # Calculate due date relative to event date
+                due_date = None
+                if event.scheduled_date:
+                    days_before = subtask_template.get("estimated_hours", 8) // 2
+                    due_date = event.scheduled_date - timedelta(days=days_before)
+                
+                # Assign different statuses based on event index
+                status_idx = len([s for s in subtasks if s.stage_id == stage.id])
+                status = subtask_statuses[min(status_idx, len(subtask_statuses) - 1)]
+                
+                subtask = WorkflowSubtask(
+                    stage_id=stage.id,
+                    title=subtask_template["title"],
+                    description=subtask_template.get("description", ""),
+                    category=subtask_template.get("category", "general"),
+                    status=status,
+                    priority=subtask_template.get("priority", "medium"),
+                    due_date=due_date,
+                    estimated_hours=subtask_template.get("estimated_hours", 4),
+                    order=subtask_template.get("order", 0)
+                )
+                session.add(subtask)
+                subtasks.append(subtask)
+    
+    await session.commit()
+    for subtask in subtasks:
+        if subtask.id is None:
+            await session.refresh(subtask)
+    
+    print(f"✓ Created {len(subtasks)} workflow subtasks")
+    return subtasks
+
+
+async def create_event_milestones(session, events):
+    """Create event milestones from templates."""
+    print("Creating event milestones...")
+    
+    milestones = []
+    
+    for event in events:
+        # Use meetup as default template
+        milestone_templates = MILESTONE_TEMPLATES.get("meetup", [])
+        
+        for template in milestone_templates:
+            from sqlalchemy import select
+            result = await session.execute(
+                select(EventMilestone).where(
+                    EventMilestone.event_id == event.id,
+                    EventMilestone.title == template["title"]
+                )
+            )
+            existing = result.scalar_one_or_none()
+            
+            if existing:
+                milestones.append(existing)
+                continue
+            
+            # Calculate due date
+            due_date = event.scheduled_date - timedelta(days=template["days_before_event"]) if event.scheduled_date else None
+            
+            # Mark early milestones as completed for events in planning
+            import random
+            is_completed = template["days_before_event"] > 30 and random.random() > 0.5
+            
+            milestone = EventMilestone(
+                event_id=event.id,
+                title=template["title"],
+                description=f"Milestone: {template['title']}",
+                milestone_type=template.get("milestone_type", "deadline"),
+                due_date=due_date,
+                is_completed=is_completed,
+                is_critical=template.get("is_critical", False),
+                order=template.get("order", 0)
+            )
+            session.add(milestone)
+            milestones.append(milestone)
+    
+    await session.commit()
+    for milestone in milestones:
+        if milestone.id is None:
+            await session.refresh(milestone)
+    
+    print(f"✓ Created {len(milestones)} event milestones")
+    return milestones
+
+
+async def initialize_workflows_for_events(session, events):
+    """Initialize complete workflows for events using the workflow service."""
+    print("Initializing workflows for events...")
+    
+    from app.services.workflow_service import WorkflowService
+    
+    for event in events:
+        # Check if workflow already exists
+        from sqlalchemy import select
+        result = await session.execute(
+            select(EventWorkflowProgress).where(EventWorkflowProgress.event_id == event.id)
+        )
+        existing = result.scalar_one_or_none()
+        
+        if existing:
+            print(f"  - Workflow for event {event.id} already exists, updating...")
+            service = WorkflowService(session)
+            await service.calculate_progress(event.id)
+        else:
+            print(f"  - Initializing workflow for event: {event.title}")
+            service = WorkflowService(session)
+            await service.initialize_workflow(event.id, "meetup")
+    
+    print(f"✓ Workflows initialized for {len(events)} events")
+    return True
+
+
+async def create_permissions(session, users):
+    """Create sample permissions."""
+    print("Creating permissions...")
+    
+    permissions = []
+    permission_data = [
+        (2, "event", None, "write", 1),  # organizer1 can write to all events
+        (2, "event", 1, "admin", 1),     # organizer1 is admin for event 1
+        (3, "event", None, "read", 1),   # assistant can read all events
+        (3, "event", 2, "write", 1),     # assistant can write to event 2
+    ]
+    
+    for user_id, resource_type, resource_id, permission_level, granted_by in permission_data:
+        permission = Permission(
+            user_id=user_id,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            permission_level=permission_level,
+            granted_by=granted_by
+        )
+        session.add(permission)
+        permissions.append(permission)
+    
+    await session.commit()
+    print(f"✓ Created {len(permissions)} permissions")
+    return permissions
+
+
+async def main():
+    """Main function to populate database."""
+    print("\n" + "="*60)
+    print("POPULATING DATABASE WITH TEST DATA")
+    print("="*60 + "\n")
+    
+    async with async_session_factory() as session:
+        try:
+            # Create all data
+            users = await create_users(session)
+            venues = await create_venues(session)
+            speakers = await create_speakers(session)
+            sponsors = await create_sponsors(session)
+            events = await create_events(session, users, venues)
+            await create_organizers(session, users, events)
+            await create_event_sponsors(session, events, sponsors)
+            await create_tasks(session, events, users)
+            await create_marketing_materials(session, events, users)
+            await create_agent_workflows(session, events, users)
+            await create_permissions(session, users)
+            
+            # Create workflow data
+            print("\n--- Creating Workflow Data ---")
+            await create_workflow_templates(session)
+            progress_records = await create_event_workflow_progress(session, events)
+            stages = await create_workflow_stages(session, events)
+            subtasks = await create_workflow_subtasks(session, events, stages)
+            milestones = await create_event_milestones(session, events)
+            
+            # Initialize workflows to calculate progress
+            print("\n--- Initializing Workflows ---")
+            await initialize_workflows_for_events(session, events)
+            
+            print("\n" + "="*60)
+            print("✅ DATABASE POPULATION COMPLETE!")
+            print("="*60)
+            print(f"""
+Summary:
+  - {len(users)} users
+  - {len(venues)} venues
+  - {len(speakers)} speakers
+  - {len(sponsors)} sponsors
+  - {len(events)} events
+  - Tasks, organizers, sponsorships, marketing materials, and workflows created
+  - {len(progress_records)} workflow progress records
+  - {len(stages)} workflow stages
+  - {len(subtasks)} workflow subtasks
+  - {len(milestones)} event milestones
+
+Authentication has been disabled for local development.
+            """)
+            
+        except Exception as e:
+            print(f"\n❌ Error: {e}")
+            await session.rollback()
+            raise
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

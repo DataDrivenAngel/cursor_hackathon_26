@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Meetup Organizer{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+    <header class="page-header">
+        <h1>Dashboard</h1>
+        <a href="/events/page" class="btn btn-primary">Create Event</a>
+    </header>
+    
+    <div class="dashboard-grid">
+        <!-- Quick Stats -->
+        <section class="stats-section">
+            <div class="stat-card">
+                <h3>Total Events</h3>
+                <p class="stat-number">{{ stats.total_events }}</p>
+            </div>
+            <div class="stat-card">
+                <h3>Planning</h3>
+                <p class="stat-number">{{ stats.events_planning }}</p>
+            </div>
+            <div class="stat-card">
+                <h3>Scheduled</h3>
+                <p class="stat-number">{{ stats.events_scheduled }}</p>
+            </div>
+            <div class="stat-card">
+                <h3>Completed</h3>
+                <p class="stat-number">{{ stats.events_completed }}</p>
+            </div>
+        </section>
+        
+        <!-- Entity Stats -->
+        <section class="stats-section">
+            <div class="stat-card">
+                <h3>Users</h3>
+                <p class="stat-number">{{ stats.users_count }}</p>
+            </div>
+            <div class="stat-card">
+                <h3>Venues</h3>
+                <p class="stat-number">{{ stats.venues_count }}</p>
+            </div>
+            <div class="stat-card">
+                <h3>Speakers</h3>
+                <p class="stat-number">{{ stats.speakers_count }}</p>
+            </div>
+            <div class="stat-card">
+                <h3>Sponsors</h3>
+                <p class="stat-number">{{ stats.sponsors_count }}</p>
+            </div>
+        </section>
+        
+        <!-- Recent Events -->
+        <section class="recent-events">
+            <h2>Recent Events</h2>
+            <div class="event-list">
+                {% for event in events[:5] %}
+                <div class="event-card">
+                    <div class="event-info">
+                        <h3>{{ event.title }}</h3>
+                        <p>{{ event.topic or "No topic" }}</p>
+                        <span class="event-status status-{{ event.status }}">{{ event.status }}</span>
+                    </div>
+                    <div class="event-actions">
+                        <a href="/events/{{ event.id }}/page" class="btn btn-sm">View</a>
+                    </div>
+                </div>
+                {% else %}
+                <p class="empty-state">No events yet. Create your first event!</p>
+                {% endfor %}
+            </div>
+        </section>
+        
+        <!-- Quick Actions -->
+        <section class="quick-actions">
+            <h2>Quick Actions</h2>
+            <div class="action-buttons">
+                <a href="/events/page" class="btn btn-secondary">
+                    Create Event
+                </a>
+                <a href="/venues/page" class="btn btn-secondary">
+                    Find Venues
+                </a>
+                <a href="/speakers/page" class="btn btn-secondary">
+                    Research Speakers
+                </a>
+                <a href="/sponsors/page" class="btn btn-secondary">
+                    Manage Sponsors
+                </a>
+            </div>
+        </section>
+    </div>
+</div>
+{% endblock %}

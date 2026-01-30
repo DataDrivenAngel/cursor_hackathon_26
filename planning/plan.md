@@ -42,12 +42,14 @@
 - **users**: User accounts with role-based permissions
 - **events**: Event information with scheduling, topics, status
 - **organizers**: Link users to events they organize
-- **attendees**: Event attendees with enrichment data
+- **attendee_profiles**: Global attendee profiles with enrichment data
+- **event_attendees**: Link attendees to specific events
 - **venues**: Known venues with research data
-- **sponsors**: Sponsor information and event associations
+- **sponsors**: Sponsor information
+- **event_sponsors**: Link sponsors to events
 - **tasks**: Kanban tasks for event planning
 - **permissions**: Role-based access control
-- **agent_workflows**: Agentic workflow execution history
+- **agent_workflows**: Agentic workflow execution history (status, input/output data)
 - **marketing_materials**: Generated marketing content
 
 ### Key Relationships
@@ -55,13 +57,16 @@
 users ──┬──> organizers ──┬──> events
         │                 │
         └──> permissions  └──> tasks
-                      │
-                      └──> events (via venue research)
-events ──┬──> attendees
-         ├──> venues
-         ├──> sponsors
+        │
+        └──> agent_workflows
+        └──> marketing_materials (created_by)
+
+events ──┬──> event_attendees ──> attendee_profiles
+         ├──> event_sponsors ──> sponsors
+         ├──> venues (via venue_id)
          ├──> marketing_materials
-         └──> tasks (kanban)
+         ├──> tasks (kanban)
+         └──> agent_workflows (optional event_id)
 ```
 
 ## Project Structure
@@ -86,12 +91,12 @@ cursor_hackathon_26/
 │   │   └── utils.py               # Password hashing, JWT handling
 │   ├── routers/
 │   │   ├── __init__.py
-│   │   ├── events.py              # Event CRUD and topic recommendations
+│   │   ├── events.py              # Event CRUD, topic recommendations, Meetup/Luma integrations
 │   │   ├── venues.py              # Venue management and research
 │   │   ├── speakers.py            # Speaker research and attendee enrichment
 │   │   ├── marketing.py           # Marketing material generation
 │   │   ├── kanban.py              # Kanban board operations
-│   │   ├── integrations.py        # Meetup/Luma API integrations
+│   │   ├── sponsors.py            # Sponsor management
 │   │   └── admin.py               # Permission management
 │   ├── agents/
 │   │   ├── __init__.py
@@ -149,13 +154,72 @@ cursor_hackathon_26/
       id: int, title: str, description: str, topic: str
       status: str (planning, scheduled, completed, cancelled)
       meetup_id: Optional[str], luma_id: Optional[str]
-      scheduled_date: datetime, venue_id: int
-      created_by: int
+      scheduled_date: Optional[datetime], venue_id: Optional[int]
+      created_by: int, created_at: datetime, updated_at: Optional[datetime]
+  
+  class Organizer(Base):
+      id: int, user_id: int, event_id: int
+      role: str (primary, assistant), created_at: datetime
+  
+  class Venue(Base):
+      id: int, name: str, address: str, city: str, state: Optional[str]
+      country: str, capacity: Optional[int], amenities: Optional[str] (JSON)
+      contact_email: Optional[str], contact_phone: Optional[str]
+      website: Optional[str], research_data: Optional[str] (JSON)
+      created_at: datetime, created_by: int
+  
+  class Speaker(Base):
+      id: int, name: str, email: Optional[str], bio: Optional[str]
+      expertise: Optional[str] (JSON), social_profiles: Optional[str] (JSON)
+      company: Optional[str], role: Optional[str]
+      created_at: datetime, created_by: int
   
   class Task(Base):
       id: int, event_id: int, title: str, description: str
       status: str (todo, in_progress, review, done)
       assignee_id: Optional[int], due_date: Optional[datetime]
+      created_at: datetime, updated_at: Optional[datetime]
+      created_by: int
+  
+  class Sponsor(Base):
+      id: int, name: str, contact_email: str, contact_phone: Optional[str]
+      website: Optional[str], description: Optional[str]
+      created_at: datetime, created_by: int
+  
+  class AgentWorkflow(Base):
+      id: int, workflow_type: str (venue_research, speaker_research)
+      status: str (pending, running, completed, failed, cancelled)
+      event_id: Optional[int], user_id: int
+      input_data: str (JSON), output_data: Optional[str] (JSON)
+      error_message: Optional[str]
+      started_at: Optional[datetime], completed_at: Optional[datetime]
+      created_at: datetime
+  
+  class MarketingMaterial(Base):
+      id: int, event_id: int, material_type: str (post, email, social)
+      title: str, content: str, generated_at: datetime
+      edited_at: Optional[datetime], created_by: int
+  
+  class Permission(Base):
+      id: int, user_id: int, resource_type: str (event, system)
+      resource_id: Optional[int], permission_level: str (read, write, admin)
+      granted_by: int, granted_at: datetime
+  
+  class EventSponsor(Base):
+      event_id: int, sponsor_id: int
+      sponsorship_level: Optional[str], notes: Optional[str]
+      created_at: datetime
+  
+  class AttendeeProfile(Base):
+      id: int, name: str, email: str
+      company: Optional[str], role: Optional[str]
+      social_profiles: Optional[str] (JSON), bio: Optional[str]
+      enriched_at: Optional[datetime]
+      created_at: datetime, updated_at: Optional[datetime]
+  
+  class EventAttendee(Base):
+      event_id: int, attendee_profile_id: int
+      registration_date: datetime, status: str (registered, attended, cancelled)
   ```
 
 #### 1.2 Authentication System
@@ -195,7 +259,7 @@ cursor_hackathon_26/
 - **File: `app/templates/dashboard.html`**
   - Four-column layout: Todo, In Progress, Review, Done
   - HTMX modal for creating/editing tasks
-  - Drag-and-drop via HTMX enhancements
+  - Task movement via HTMX: Click-to-move buttons
 
 ### Phase 3: API Integrations (Days 3-4)
 
@@ -216,11 +280,10 @@ cursor_hackathon_26/
   - Similar structure to Meetup service
   - Event creation and status sync
 
-#### 3.3 Integration Router
-- **File: `app/routers/integrations.py`**
-  - POST `/integrations/meetup/{event_id}` - Push to Meetup
-  - POST `/integrations/luma/{event_id}` - Push to Luma
-  - GET `/integrations/status/{event_id}` - Check sync status
+#### 3.3 Integration Endpoints (merged into events.py)
+- POST `/events/{event_id}/meetup` - Push to Meetup
+- POST `/events/{event_id}/luma` - Push to Luma
+- GET `/events/{event_id}/integrations/status` - Check sync status
 
 ### Phase 4: Agentic Workflows (Days 4-6)
 
@@ -248,11 +311,11 @@ cursor_hackathon_26/
     3. `save_venue(data)` - Persist new venue to database
     4. `summarize_findings()` - Generate research summary
 
-- **Workflow:**
-  1. Receive venue requirements (capacity, location, amenities)
-  2. Search existing venues in database
-  3. If insufficient, use Perplexity to find additional venues
-  4. Compile research report with recommendations
+- **Endpoint: `POST /venues/research`**
+  - Receives venue requirements (capacity, location, amenities)
+  - Runs synchronously with extended timeout (60s)
+  - Returns research results directly
+  - New venues saved to database automatically
 
 #### 4.3 Speaker Research Agent
 - **File: `app/agents/speaker_research.py`**
@@ -262,11 +325,15 @@ cursor_hackathon_26/
     3. `save_speaker(data)` - Store speaker information
     4. `generate_outreach_message()` - Draft outreach template
 
-- **Workflow:**
-  1. Receive event topic and location
-  2. Search for relevant local speakers using Perplexity
-  3. Enrich previous attendees by name/email
-  4. Generate speaker outreach materials
+- **Endpoint: `POST /speakers/research`**
+  - Receives event topic and location
+  - Runs synchronously with extended timeout (60s)
+  - Returns speaker recommendations and outreach templates
+
+- **Attendee Enrichment: `POST /speakers/enrich`**
+  - Accepts attendee name and email
+  - Searches for enrichment data (company, role, social profiles)
+  - Updates `AttendeeProfile` with enriched data
 
 ### Phase 5: Marketing Materials (Day 6)
 
@@ -278,6 +345,13 @@ cursor_hackathon_26/
 - **Integration with Topic Recommender:**
   - Use historical event data to generate relevant marketing copy
   - Include hashtags, descriptions, call-to-action
+
+### Phase 5.5: Sponsor Management (Day 6)
+
+- **File: `app/routers/sponsors.py`**
+  - CRUD endpoints for sponsor management
+  - Event-sponsor linking/unlinking
+  - Sponsor search and filtering
 
 ### Phase 6: Permission Management (Day 7)
 
@@ -332,7 +406,10 @@ cursor_hackathon_26/
 - `GET /events/{id}` - Event details
 - `PUT /events/{id}` - Update event
 - `DELETE /events/{id}` - Delete event
-- `GET /events/recommendations` - Topic recommendations
+- `GET /events/{id}/recommendations` - Topic recommendations
+- `POST /events/{id}/meetup` - Push to Meetup
+- `POST /events/{id}/luma` - Push to Luma
+- `GET /events/{id}/integrations/status` - Check sync status
 
 ### Kanban
 - `GET /kanban/{event_id}` - Get all tasks
@@ -348,7 +425,7 @@ cursor_hackathon_26/
 
 ### Speakers
 - `GET /speakers` - List speakers
-- `POST /speakers/research` - Trigger speaker research
+- `POST /speakers/research` - Trigger speaker research agent
 - `POST /speakers/enrich` - Enrich attendee data
 - `GET /speakers/{id}` - Speaker details
 
@@ -357,10 +434,14 @@ cursor_hackathon_26/
 - `POST /marketing/{event_id}/generate` - Generate marketing copy
 - `PUT /marketing/{material_id}` - Edit material
 
-### Integrations
-- `POST /integrations/meetup/{event_id}`
-- `POST /integrations/luma/{event_id}`
-- `GET /integrations/status/{event_id}`
+### Sponsors
+- `GET /sponsors` - List all sponsors
+- `POST /sponsors` - Create sponsor
+- `GET /sponsors/{id}` - Sponsor details
+- `PUT /sponsors/{id}` - Update sponsor
+- `DELETE /sponsors/{id}` - Delete sponsor
+- `POST /events/{event_id}/sponsors/{sponsor_id}` - Link sponsor to event
+- `DELETE /events/{event_id}/sponsors/{sponsor_id}` - Unlink sponsor from event
 
 ### Admin
 - `GET /admin/users`
@@ -419,18 +500,27 @@ class VenueResearchAgent(BaseAgent):
 <div class="kanban-board">
     <div class="column" id="todo">
         <h3>To Do</h3>
-        <div hx-get="/kanban/1/tasks?status=todo" 
+        <div id="todo-tasks" 
+             hx-get="/kanban/1/tasks?status=todo" 
              hx-trigger="load, taskCreated from:body">
         </div>
     </div>
     <div class="column" id="in_progress">
         <h3>In Progress</h3>
-        <div hx-get="/kanban/1/tasks?status=in_progress"
+        <div id="in-progress-tasks"
+             hx-get="/kanban/1/tasks?status=in_progress"
              hx-trigger="load, taskUpdated from:body">
         </div>
     </div>
     <!-- More columns... -->
 </div>
+```
+
+**Task movement via HTMX click-to-move buttons:**
+```html
+<button hx-patch="/kanban/tasks/1" 
+        hx-vals='{"status": "in_progress"}'
+        class="move-btn">Move to In Progress</button>
 ```
 
 ## Dependencies to Install
@@ -465,5 +555,6 @@ openai==1.12.0
 - **Phase 1-2 (Foundation + Events)**: 3-4 days
 - **Phase 3 (Integrations)**: 1-2 days
 - **Phase 4 (Agentic Workflows)**: 2-3 days
-- **Phase 5-7 (Marketing + Frontend)**: 2-3 days
-- **Total**: 8-12 days for full implementation
+- **Phase 5-6 (Marketing + Sponsors + Permissions)**: 2-3 days
+- **Phase 7 (Frontend)**: 2-3 days
+- **Total**: 10-14 days for full implementation

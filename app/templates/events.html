@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}Events - Meetup Organizer{% endblock %}
+
+{% block content %}
+<div class="events-page">
+    <header class="page-header">
+        <h1>Events</h1>
+        <button class="btn btn-primary" onclick="showCreateModal()">Create Event</button>
+    </header>
+    
+    <!-- Event Filters -->
+    <div class="filters">
+        <button class="filter-btn active" data-status="all" hx-get="/events/list" hx-target="#events-grid" hx-vals='{"status": "all"}'>All</button>
+        <button class="filter-btn" data-status="planning" hx-get="/events/list" hx-target="#events-grid" hx-vals='{"status": "planning"}'>Planning</button>
+        <button class="filter-btn" data-status="scheduled" hx-get="/events/list" hx-target="#events-grid" hx-vals='{"status": "scheduled"}'>Scheduled</button>
+        <button class="filter-btn" data-status="completed" hx-get="/events/list" hx-target="#events-grid" hx-vals='{"status": "completed"}'>Completed</button>
+    </div>
+    
+    <!-- Events List -->
+    <div class="events-grid" id="events-grid" hx-get="/events/list" hx-trigger="load, filterChanged from:body" hx-target="this">
+    </div>
+    
+    <!-- Create Event Modal -->
+    <dialog id="create-event-modal">
+        <form hx-post="/events/htmx" hx-target="#events-grid" hx-swap="beforeend">
+            <h2>Create New Event</h2>
+            <div class="form-group">
+                <label for="title">Event Title</label>
+                <input type="text" id="title" name="title" required>
+            </div>
+            <div class="form-group">
+                <label for="description">Description</label>
+                <textarea id="description" name="description" rows="3"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="topic">Topic</label>
+                <input type="text" id="topic" name="topic">
+            </div>
+            <div class="form-group">
+                <label for="scheduled_date">Date</label>
+                <input type="datetime-local" id="scheduled_date" name="scheduled_date">
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeCreateModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Create Event</button>
+            </div>
+        </form>
+    </dialog>
+</div>
+
+<script>
+    function showCreateModal() {
+        document.getElementById('create-event-modal').showModal();
+    }
+    
+    function closeCreateModal() {
+        document.getElementById('create-event-modal').close();
+    }
+    
+    // Handle HTMX form submission
+    document.addEventListener('htmx:afterRequest', function(evt) {
+        const form = evt.detail.elt;
+        if (form.tagName === 'FORM' && form.hxPost && form.hxPost.includes('/events/htmx')) {
+            if (evt.detail.successful) {
+                closeCreateModal();
+                form.reset();
+                // Remove empty state if present and refresh the list
+                htmx.ajax('GET', '/events/list', {target: '#events-grid'});
+            }
+        }
+    });
+    
+    // Filter button handling with HTMX
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            
+            // HTMX will handle the actual filtering via hx-get and hx-vals
+        });
+    });
+    
+    // Handle delete events
+    document.addEventListener('htmx:afterRequest', function(evt) {
+        if (evt.detail.elt.matches('[hx-delete^="/events/"]') && evt.detail.successful) {
+            // Check if grid is empty and refresh if needed
+            const grid = document.getElementById('events-grid');
+            if (grid && grid.children.length === 0) {
+                htmx.ajax('GET', '/events/list', {target: '#events-grid'});
+            }
+        }
+    });
+</script>
+{% endblock %}

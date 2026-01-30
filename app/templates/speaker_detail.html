@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+
+{% block title %}{{ speaker.name }} - Meetup Organizer{% endblock %}
+
+{% block content %}
+<div class="speaker-detail-page">
+    <header class="page-header">
+        <div class="breadcrumb">
+            <a href="/speakers/page">Speakers</a>
+            <span>/</span>
+            <span>{{ speaker.name }}</span>
+        </div>
+        <h1>{{ speaker.name }}</h1>
+    </header>
+    
+    <div class="speaker-detail-grid">
+        <div class="main-content">
+            <section class="card">
+                <div class="card-header">
+                    <h2>Speaker Details</h2>
+                </div>
+                <div class="card-body">
+                    <div class="detail-grid">
+                        {% if speaker.company %}
+                        <div class="detail-item">
+                            <span class="detail-label">Company</span>
+                            <span class="detail-value">{{ speaker.company }}</span>
+                        </div>
+                        {% endif %}
+                        {% if speaker.role %}
+                        <div class="detail-item">
+                            <span class="detail-label">Role</span>
+                            <span class="detail-value">{{ speaker.role }}</span>
+                        </div>
+                        {% endif %}
+                        {% if speaker.email %}
+                        <div class="detail-item">
+                            <span class="detail-label">Email</span>
+                            <span class="detail-value">{{ speaker.email }}</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    {% if speaker.bio %}
+                    <div class="bio-section">
+                        <h3>Bio</h3>
+                        <p>{{ speaker.bio }}</p>
+                    </div>
+                    {% endif %}
+                    
+                    {% if speaker.expertise %}
+                    <div class="expertise-section">
+                        <h3>Expertise</h3>
+                        <div class="expertise-list">
+                            {% for exp in speaker.expertise %}
+                            <span class="expertise-badge">{{ exp }}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </section>
+            
+            {% if speaker.social_profiles %}
+            <section class="card">
+                <div class="card-header">
+                    <h2>Social Profiles</h2>
+                </div>
+                <div class="card-body">
+                    <pre class="social-data">{{ speaker.social_profiles }}</pre>
+                </div>
+            </section>
+            {% endif %}
+        </div>
+        
+        <div class="sidebar">
+            <section class="card">
+                <div class="card-header">
+                    <h2>Actions</h2>
+                </div>
+                <div class="card-body">
+                    <a href="/speakers/page" class="btn btn-secondary" style="width: 100%;">Back to Speakers</a>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+
+<style>
+.speaker-detail-page {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.breadcrumb {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    font-size: 0.875rem;
+    color: var(--color-text-muted);
+}
+
+.breadcrumb a {
+    color: var(--color-primary);
+    text-decoration: none;
+}
+
+.speaker-detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 24px;
+    margin-top: 24px;
+}
+
+@media (max-width: 1024px) {
+    .speaker-detail-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.detail-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.detail-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.detail-label {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.detail-value {
+    font-size: 0.875rem;
+    color: var(--color-text);
+}
+
+.bio-section, .expertise-section {
+    margin-top: 24px;
+}
+
+.bio-section h3, .expertise-section h3 {
+    font-size: 1rem;
+    margin-bottom: 12px;
+}
+
+.bio-section p {
+    color: var(--color-text-muted);
+    line-height: 1.6;
+}
+
+.expertise-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.expertise-badge {
+    padding: 4px 12px;
+    background: #d1fae5;
+    color: #065f46;
+    border-radius: var(--radius);
+    font-size: 0.875rem;
+}
+
+.social-data {
+    background: var(--color-bg);
+    padding: var(--spacing);
+    border-radius: var(--radius);
+    font-size: 0.75rem;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    font-family: var(--font-mono);
+}
+</style>
+{% endblock %}
