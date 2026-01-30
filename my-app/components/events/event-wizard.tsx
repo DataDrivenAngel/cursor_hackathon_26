@@ -137,9 +137,9 @@ export function EventWizard({ isOpen, onClose, onSubmit }: EventWizardProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl bg-card border-border p-0 gap-0 overflow-hidden">
+      <DialogContent className="max-w-2xl bg-card border-border p-0 gap-0 max-h-[calc(100vh-4rem)] overflow-hidden">
         {/* Progress Steps */}
-        <div className="border-b border-border bg-secondary/30 px-6 py-4">
+        <div className="border-b border-border bg-secondary/30 px-6 py-4 shrink-0">
           <div className="flex items-center justify-between">
             {steps.map((step, index) => (
               <div key={step.id} className="flex items-center">
@@ -189,7 +189,7 @@ export function EventWizard({ isOpen, onClose, onSubmit }: EventWizardProps) {
           </div>
         </div>
 
-        <DialogHeader className="px-6 pt-6 pb-2">
+        <DialogHeader className="px-6 pt-6 pb-2 shrink-0">
           <DialogTitle className="text-xl text-card-foreground">
             {currentStep === 1 && "Event Basics"}
             {currentStep === 2 && "Schedule & Format"}
@@ -199,7 +199,7 @@ export function EventWizard({ isOpen, onClose, onSubmit }: EventWizardProps) {
         </DialogHeader>
 
         {/* Step Content */}
-        <div className="px-6 py-4 min-h-[320px]">
+        <div className="px-6 py-4 min-h-[320px] overflow-y-auto max-h-[calc(100vh-20rem)]">
           {/* Step 1: Basics */}
           {currentStep === 1 && (
             <div className="space-y-4 animate-fade-in">
@@ -487,7 +487,7 @@ export function EventWizard({ isOpen, onClose, onSubmit }: EventWizardProps) {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between border-t border-border bg-secondary/30 px-6 py-4">
+        <div className="flex items-center justify-between border-t border-border bg-secondary/30 px-6 py-4 shrink-0">
           <Button
             variant="ghost"
             onClick={currentStep === 1 ? handleClose : handleBack}
