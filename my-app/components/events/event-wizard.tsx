@@ -139,8 +139,8 @@ export function EventWizard({ isOpen, onClose, onSubmit }: EventWizardProps) {
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-2xl bg-card border-border p-0 gap-0 max-h-[calc(100vh-4rem)] overflow-hidden">
         {/* Progress Steps */}
-        <div className="border-b border-border bg-secondary/30 px-6 py-4 shrink-0">
-          <div className="flex items-center justify-between">
+        <div className="border-b border-border bg-secondary/30 px-6 py-4 shrink-0 w-full overflow-hidden">
+          <div className="flex items-center justify-between w-full min-w-0">
             {steps.map((step, index) => (
               <div key={step.id} className="flex items-center">
                 <div className="flex items-center gap-3">

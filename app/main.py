@@ -4,6 +4,7 @@ Meetup Organizing Information Support System - Main Application Entry Point.
 import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
@@ -33,6 +34,15 @@ app = FastAPI(
     title=settings.APP_TITLE,
     version=settings.APP_VERSION,
     lifespan=lifespan,
+)
+
+# Add CORS middleware to allow frontend requests
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Mount static files
