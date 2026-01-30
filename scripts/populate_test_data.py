@@ -19,7 +19,6 @@ from app.models.database_models import (
     AttendeeProfile, EventAttendee
 )
 from app.models.workflow_models import EventWorkflowProgress, WorkflowStage, EventMilestone
-from app.auth.utils import get_password_hash as hash_password
 
 
 async def get_session():
@@ -246,28 +245,24 @@ async def create_users(session):
         User(
             username="admin",
             email="admin@example.com",
-            hashed_password=hash_password("admin123"),
             role="admin",
             is_active=True
         ),
         User(
             username="organizer1",
             email="organizer1@example.com",
-            hashed_password=hash_password("organizer123"),
             role="organizer",
             is_active=True
         ),
         User(
             username="organizer2",
             email="organizer2@example.com",
-            hashed_password=hash_password("organizer123"),
             role="organizer",
             is_active=True
         ),
         User(
             username="assistant",
             email="assistant@example.com",
-            hashed_password=hash_password("assistant123"),
             role="assistant",
             is_active=True
         )
@@ -606,10 +601,7 @@ Summary:
   - {len(events)} events
   - Tasks, organizers, sponsorships, marketing materials, and workflows created
 
-Test Credentials:
-  - Admin: admin / admin123
-  - Organizer: organizer1 / organizer123
-  - Assistant: assistant / assistant123
+Authentication has been disabled for local development.
             """)
             
         except Exception as e:

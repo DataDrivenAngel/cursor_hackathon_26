@@ -1,35 +1,14 @@
 {% extends "base.html" %}
 
-{% block title %}Login - Meetup Organizer{% endblock %}
+{% block title %}Development Mode - Meetup Organizer{% endblock %}
 
 {% block content %}
 <div class="auth-container">
     <div class="auth-card">
-        <h1>Welcome Back</h1>
-        
-        {% if error %}
-        <div class="alert alert-error">{{ error }}</div>
-        {% endif %}
-        
-        <form id="login-form" hx-post="/auth/login" hx-target="#login-error">
-            <div class="form-group">
-                <label for="username">Username</label>
-                <input type="text" id="username" name="username" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="password">Password</label>
-                <input type="password" id="password" name="password" required>
-            </div>
-            
-            <button type="submit" class="btn btn-primary">Login</button>
-        </form>
-        
-        <div id="login-error"></div>
-        
-        <div class="auth-links">
-            <p>Don't have an account? <a href="/auth/register">Register</a></p>
-        </div>
+        <h1>Development Mode</h1>
+        <p>Authentication has been disabled for local development.</p>
+        <p>You have full access to all features.</p>
+        <a href="/" class="btn btn-primary">Go to Dashboard</a>
     </div>
 </div>
 {% endblock %}

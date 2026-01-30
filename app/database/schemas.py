@@ -16,7 +16,7 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     """Schema for creating a user."""
-    password: str = Field(..., min_length=8)
+    pass
 
 
 class UserUpdate(BaseModel):
@@ -412,20 +412,6 @@ class PermissionResponse(PermissionBase):
 
     class Config:
         from_attributes = True
-
-
-# ==================== Authentication Schemas ====================
-
-class Token(BaseModel):
-    """Schema for JWT token response."""
-    access_token: str
-    token_type: str = "bearer"
-
-
-class TokenData(BaseModel):
-    """Schema for token payload data."""
-    user_id: Optional[int] = None
-    username: Optional[str] = None
 
 
 # ==================== Venue Research Schemas ====================
