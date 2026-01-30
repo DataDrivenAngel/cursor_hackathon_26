@@ -91,6 +91,14 @@ mkdir -p "$PROJECT_ROOT/data"
 mkdir -p "$PROJECT_ROOT/static"
 print_status "Directories created"
 
+# Delete existing database to start fresh
+DB_FILE="$PROJECT_ROOT/data/meetup.db"
+if [ -f "$DB_FILE" ]; then
+    print_warning "Deleting existing database..."
+    rm -f "$DB_FILE"
+    print_status "Database deleted"
+fi
+
 # Create .env file if it doesn't exist
 ENV_FILE="$PROJECT_ROOT/.env"
 if [ ! -f "$ENV_FILE" ]; then
@@ -105,9 +113,6 @@ MINIMAX_API_KEY=
 PERPLEXITY_API_KEY=
 JIGSAWSTACK_API_KEY=
 REPLICATE_API_TOKEN=
-
-# JWT Secret
-JWT_SECRET_KEY=dev-secret-key-change-in-production
 
 # Database path
 DATABASE_PATH=data/meetup.db
@@ -156,10 +161,8 @@ if [ -f "$PROJECT_ROOT/scripts/populate_test_data.py" ]; then
     echo ""
     print_status "Database setup completed successfully!"
     echo ""
-    echo -e "${YELLOW}Test Credentials:${NC}"
-    echo "  - Admin: admin / admin123"
-    echo "  - Organizer: organizer1 / organizer123"
-    echo "  - Assistant: assistant / assistant123"
+    echo "Authentication has been disabled for local development."
+    echo "You have full access to all features."
     echo ""
 else
     print_error "Population script not found at $PROJECT_ROOT/scripts/populate_test_data.py"
