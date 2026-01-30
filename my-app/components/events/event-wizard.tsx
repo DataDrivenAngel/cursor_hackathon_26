@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import {
   Check,
@@ -28,8 +29,11 @@ import {
   Settings,
   Eye,
   Loader2,
+  Sparkles,
+  ImageIcon,
+  RefreshCw,
 } from "lucide-react";
-import { createEvent } from "@/lib/api";
+import { createEvent, generateEventImage } from "@/lib/api";
 import type { EventWizardData, EventFormat } from "@/lib/types";
 import { toast } from "sonner";
 
@@ -56,6 +60,8 @@ const initialFormData: EventWizardData = {
   venuePreferences: "",
   speakerRequirements: "",
   sponsorInfo: "",
+  generateImage: false,
+  imageUrl: undefined,
 };
 
 export function EventWizard({ isOpen, onClose, onSubmit }: EventWizardProps) {
@@ -63,6 +69,7 @@ export function EventWizard({ isOpen, onClose, onSubmit }: EventWizardProps) {
   const [formData, setFormData] = useState<EventWizardData>(initialFormData);
   const [errors, setErrors] = useState<Partial<Record<keyof EventWizardData, string>>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
 
   const updateFormData = <K extends keyof EventWizardData>(
     field: K,
@@ -73,6 +80,39 @@ export function EventWizard({ isOpen, onClose, onSubmit }: EventWizardProps) {
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: undefined }));
     }
+  };
+
+  const handleGenerateImage = async () => {
+    if (!formData.title.trim()) {
+      toast.error("Please enter an event title first");
+      return;
+    }
+
+    setIsGeneratingImage(true);
+    try {
+      const imageUrl = await generateEventImage(
+        "temp",
+        formData.title,
+        formData.topic,
+        formData.description
+      );
+      if (imageUrl) {
+        updateFormData("imageUrl", imageUrl);
+        updateFormData("generateImage", true);
+        toast.success("AI image generated successfully!");
+      } else {
+        toast.error("Failed to generate image. Please try again.");
+      }
+    } catch (error) {
+      console.error("Error generating image:", error);
+      toast.error("Failed to generate image. Please try again.");
+    } finally {
+      setIsGeneratingImage(false);
+    }
+  };
+
+  const handleRegenerateImage = async () => {
+    await handleGenerateImage();
   };
 
   const validateStep = (step: number): boolean => {
@@ -258,6 +298,89 @@ export function EventWizard({ isOpen, onClose, onSubmit }: EventWizardProps) {
                   <p className="text-sm text-destructive">{errors.topic}</p>
                 )}
               </div>
+
+              {/* AI Image Generation */}
+              <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20">
+                    <Sparkles className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="text-sm font-medium text-card-foreground">
+                      Generate AI Event Image
+                    </h4>
+                    <p className="text-xs text-muted-foreground">
+                      Create a professional promotional image using MiniMax AI
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <Checkbox
+                    id="generateImage"
+                    checked={formData.generateImage}
+                    onCheckedChange={(checked: "checked" | boolean | undefined) => {
+                      const isChecked = checked === "checked" || checked === true;
+                      updateFormData("generateImage", isChecked);
+                      if (isChecked && !formData.imageUrl) {
+                        handleGenerateImage();
+                      }
+                    }}
+                    className="border-primary data-[state=checked]:bg-primary"
+                  />
+                  <Label
+                    htmlFor="generateImage"
+                    className="text-sm text-card-foreground cursor-pointer"
+                  >
+                    Generate AI image for this event
+                  </Label>
+                </div>
+
+                {formData.generateImage && (
+                  <div className="space-y-2">
+                    {formData.imageUrl ? (
+                      <div className="relative rounded-lg overflow-hidden border border-border">
+                        <img
+                          src={formData.imageUrl}
+                          alt="Generated event image"
+                          className="w-full h-40 object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleRegenerateImage}
+                          disabled={isGeneratingImage}
+                          className="absolute bottom-2 right-2 flex items-center gap-1 px-2 py-1 bg-background/90 rounded-md text-xs font-medium hover:bg-background transition-colors"
+                        >
+                          {isGeneratingImage ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-3 w-3" />
+                          )}
+                          Regenerate
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center h-20 rounded-lg bg-secondary/50 border border-dashed border-border">
+                        {isGeneratingImage ? (
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span className="text-sm">Generating image...</span>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={handleGenerateImage}
+                            className="flex items-center gap-2 text-sm text-primary hover:text-primary/80 transition-colors"
+                          >
+                            <ImageIcon className="h-4 w-4" />
+                            Click to generate image
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -391,6 +514,21 @@ export function EventWizard({ isOpen, onClose, onSubmit }: EventWizardProps) {
           {/* Step 4: Review */}
           {currentStep === 4 && (
             <div className="space-y-4 animate-fade-in">
+              {/* AI Generated Image Preview */}
+              {formData.generateImage && formData.imageUrl && (
+                <div className="rounded-lg border border-primary/30 overflow-hidden">
+                  <div className="flex items-center gap-2 px-3 py-2 bg-primary/10 border-b border-primary/20">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-medium text-primary">AI Generated Image</span>
+                  </div>
+                  <img
+                    src={formData.imageUrl}
+                    alt="Generated event image"
+                    className="w-full h-48 object-cover"
+                  />
+                </div>
+              )}
+
               <div className="rounded-lg border border-border bg-secondary/30 p-4 space-y-4">
                 <div>
                   <h4 className="text-sm font-medium text-muted-foreground">
