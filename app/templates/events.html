@@ -18,7 +18,7 @@
     </div>
     
     <!-- Events List -->
-    <div class="events-grid" hx-get="/events" hx-trigger="load, filterChanged from:body" hx-target="this">
+    <div class="events-grid" id="events-grid" hx-get="/events" hx-trigger="load, filterChanged from:body" hx-target="this">
         {% for event in events %}
         <div class="event-card" data-status="{{ event.status }}">
             <div class="event-header">
@@ -55,7 +55,7 @@
     
     <!-- Create Event Modal -->
     <dialog id="create-event-modal">
-        <form hx-post="/events" hx-target="#events-grid">
+        <form hx-post="/events/htmx" hx-target="#events-grid" hx-swap="beforeend">
             <h2>Create New Event</h2>
             <div class="form-group">
                 <label for="title">Event Title</label>
@@ -89,6 +89,22 @@
     function closeCreateModal() {
         document.getElementById('create-event-modal').close();
     }
+    
+    // Handle HTMX form submission
+    document.addEventListener('htmx:afterRequest', function(evt) {
+        const form = evt.detail.elt;
+        if (form.tagName === 'FORM' && form.hxPost && form.hxPost.includes('/events/htmx')) {
+            if (evt.detail.successful) {
+                closeCreateModal();
+                form.reset();
+                // Remove empty state if present
+                const emptyState = document.querySelector('.empty-state');
+                if (emptyState) {
+                    emptyState.remove();
+                }
+            }
+        }
+    });
     
     // Filter functionality
     document.querySelectorAll('.filter-btn').forEach(btn => {

@@ -3,7 +3,7 @@ Events router - CRUD operations, topic recommendations, and integrations.
 """
 from typing import List, Optional
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Form
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -135,6 +135,26 @@ async def list_events(
     return events
 
 
+@router.get("/page", response_class=HTMLResponse)
+async def get_events_page(
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get events list page."""
+    result = await db.execute(
+        select(Event).options(
+            selectinload(Event.venue),
+            selectinload(Event.organizers).selectinload(Organizer.user)
+        ).order_by(desc(Event.created_at))
+    )
+    events = result.scalars().all()
+    
+    return templates.TemplateResponse("events.html", {
+        "request": request,
+        "events": events
+    })
+
+
 @router.get("/{event_id}", response_model=EventResponse)
 async def get_event(event_id: int, db: AsyncSession = Depends(get_db)):
     """Get a single event by ID."""
@@ -210,6 +230,76 @@ async def create_event(
     await db.commit()
     
     return event
+
+
+@router.post("/htmx", response_class=HTMLResponse)
+async def create_event_htmx(
+    request: Request,
+    title: str = Form(...),
+    description: Optional[str] = Form(None),
+    topic: Optional[str] = Form(None),
+    scheduled_date: Optional[str] = Form(None),
+    current_user: User = Depends(bypass_admin_check),
+    db: AsyncSession = Depends(get_db)
+):
+    """Create a new event via HTMX - returns HTML snippet."""
+    from datetime import datetime
+    
+    # Parse scheduled_date if provided
+    parsed_date = None
+    if scheduled_date:
+        try:
+            parsed_date = datetime.fromisoformat(scheduled_date.replace('T', ' '))
+        except ValueError:
+            pass
+    
+    # Create event
+    event = Event(
+        title=title,
+        description=description,
+        topic=topic,
+        scheduled_date=parsed_date,
+        created_by=current_user.id
+    )
+    
+    db.add(event)
+    await db.commit()
+    await db.refresh(event)
+    
+    # Add creator as primary organizer
+    organizer = Organizer(
+        user_id=current_user.id,
+        event_id=event.id,
+        role="primary"
+    )
+    db.add(organizer)
+    await db.commit()
+    
+    # Return HTML for the new event card
+    return f"""
+    <div class="event-card" data-status="{event.status}">
+        <div class="event-header">
+            <h3>{event.title}</h3>
+            <span class="event-status status-{event.status}">{event.status}</span>
+        </div>
+        <p class="event-description">{event.description or "No description"}</p>
+        <div class="event-meta">
+            <span class="event-topic">{event.topic or "No topic"}</span>
+            <span class="event-date">
+                {event.scheduled_date.strftime('%B %d, %Y') if event.scheduled_date else "Date TBD"}
+            </span>
+        </div>
+        <div class="event-actions">
+            <a href="/events/{event.id}/page" class="btn btn-sm">View Details</a>
+            <button class="btn btn-sm btn-secondary" 
+                    hx-delete="/events/{event.id}"
+                    hx-confirm="Are you sure you want to delete this event?"
+                    hx-target="closest .event-card">
+                Delete
+            </button>
+        </div>
+    </div>
+    """
 
 
 @router.put("/{event_id}", response_model=EventResponse)
