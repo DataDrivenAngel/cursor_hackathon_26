@@ -107,9 +107,12 @@ else
     print_status "Virtual environment already exists"
 fi
 
-# Activate and install dependencies
-print_info "Installing dependencies..."
-source "$VENV_DIR/bin/activate"
+# Activate virtual environment if not already activated
+if [ -z "$VIRTUAL_ENV" ]; then
+    source "$VENV_DIR/bin/activate"
+else
+    print_status "Virtual environment already activated: $VIRTUAL_ENV"
+fi
 
 # Upgrade pip first
 python -m pip install --upgrade pip --quiet
@@ -170,8 +173,12 @@ if [ "$POPULATE_DATA" = true ]; then
     echo -e "${BLUE}========================================${NC}"
     echo ""
     
-    # Activate virtual environment
-    source "$VENV_DIR/bin/activate"
+    # Activate virtual environment if not already activated
+    if [ -z "$VIRTUAL_ENV" ]; then
+        source "$VENV_DIR/bin/activate"
+    else
+        print_status "Virtual environment already activated: $VIRTUAL_ENV"
+    fi
     cd "$PROJECT_ROOT"
     
     # Run the population script
@@ -216,8 +223,12 @@ echo -e "The application will be available at: ${GREEN}http://localhost:8000${NC
 echo -e "Press ${YELLOW}Ctrl+C${NC} to stop the server"
 echo ""
 
-# Activate virtual environment and run
-source "$VENV_DIR/bin/activate"
+# Activate virtual environment if not already activated
+if [ -z "$VIRTUAL_ENV" ]; then
+    source "$VENV_DIR/bin/activate"
+else
+    print_status "Virtual environment already activated: $VIRTUAL_ENV"
+fi
 cd "$PROJECT_ROOT"
 
 # Function to open browser (cross-platform)
