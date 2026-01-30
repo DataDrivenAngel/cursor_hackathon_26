@@ -238,8 +238,8 @@ SPONSORS = [
 
 
 async def create_users(session):
-    """Create test users."""
-    print("Creating users...")
+    """Create test users if they don't exist."""
+    print("Checking and creating users...")
     
     users = [
         User(
@@ -268,83 +268,162 @@ async def create_users(session):
         )
     ]
     
+    created_users = []
     for user in users:
-        session.add(user)
+        # Check if user already exists
+        from sqlalchemy import select
+        result = await session.execute(
+            select(User).where(User.username == user.username)
+        )
+        existing_user = result.scalar_one_or_none()
+        
+        if existing_user:
+            print(f"  - User '{user.username}' already exists, skipping")
+        else:
+            session.add(user)
+            created_users.append(user)
+            print(f"  - Created user '{user.username}'")
     
-    await session.commit()
-    print(f"✓ Created {len(users)} users")
-    return users
+    if created_users:
+        await session.commit()
+        print(f"✓ Created {len(created_users)} new users")
+    else:
+        print("✓ All users already exist, no new users created")
+    
+    # Return all users for downstream functions to use
+    result = await session.execute(select(User))
+    return result.scalars().all()
 
 
 async def create_venues(session):
-    """Create test venues."""
-    print("Creating venues...")
+    """Create test venues if they don't exist."""
+    print("Checking and creating venues...")
     
     venues = []
-    for i, venue_data in enumerate(VENUES):
-        venue = Venue(
-            name=venue_data["name"],
-            address=venue_data["address"],
-            city=venue_data["city"],
-            state=venue_data["state"],
-            country=venue_data["country"],
-            capacity=venue_data["capacity"],
-            amenities=",".join(venue_data["amenities"]),
-            contact_email=venue_data["contact_email"],
-            contact_phone=venue_data["contact_phone"],
-            website=venue_data["website"],
-            created_by=1  # admin user
+    for venue_data in VENUES:
+        from sqlalchemy import select
+        # Check if venue already exists by name
+        result = await session.execute(
+            select(Venue).where(Venue.name == venue_data["name"])
         )
-        session.add(venue)
-        venues.append(venue)
+        existing_venue = result.scalar_one_or_none()
+        
+        if existing_venue:
+            print(f"  - Venue '{venue_data['name']}' already exists, skipping")
+            venues.append(existing_venue)
+        else:
+            venue = Venue(
+                name=venue_data["name"],
+                address=venue_data["address"],
+                city=venue_data["city"],
+                state=venue_data["state"],
+                country=venue_data["country"],
+                capacity=venue_data["capacity"],
+                amenities=",".join(venue_data["amenities"]),
+                contact_email=venue_data["contact_email"],
+                contact_phone=venue_data["contact_phone"],
+                website=venue_data["website"],
+                created_by=1  # admin user
+            )
+            session.add(venue)
+            venues.append(venue)
+            print(f"  - Created venue '{venue_data['name']}'")
     
-    await session.commit()
-    print(f"✓ Created {len(venues)} venues")
+    if not any(v.id is None for v in venues):
+        await session.commit()
+    
+    # Refresh to get IDs for newly created venues
+    for venue in venues:
+        if venue.id is None:
+            await session.refresh(venue)
+    
+    new_count = sum(1 for v in venues if v.id is not None)
+    print(f"✓ {new_count} new venues created, {len(venues) - new_count} already existed")
     return venues
 
 
 async def create_speakers(session):
-    """Create test speakers."""
-    print("Creating speakers...")
+    """Create test speakers if they don't exist."""
+    print("Checking and creating speakers...")
     
     speakers = []
     for speaker_data in SPEAKERS:
-        speaker = Speaker(
-            name=speaker_data["name"],
-            email=speaker_data["email"],
-            bio=speaker_data["bio"],
-            expertise=",".join(speaker_data["expertise"]),
-            company=speaker_data["company"],
-            role=speaker_data["role"],
-            created_by=1
+        from sqlalchemy import select
+        # Check if speaker already exists by email
+        result = await session.execute(
+            select(Speaker).where(Speaker.email == speaker_data["email"])
         )
-        session.add(speaker)
-        speakers.append(speaker)
+        existing_speaker = result.scalar_one_or_none()
+        
+        if existing_speaker:
+            print(f"  - Speaker '{speaker_data['name']}' already exists, skipping")
+            speakers.append(existing_speaker)
+        else:
+            speaker = Speaker(
+                name=speaker_data["name"],
+                email=speaker_data["email"],
+                bio=speaker_data["bio"],
+                expertise=",".join(speaker_data["expertise"]),
+                company=speaker_data["company"],
+                role=speaker_data["role"],
+                created_by=1
+            )
+            session.add(speaker)
+            speakers.append(speaker)
+            print(f"  - Created speaker '{speaker_data['name']}'")
     
-    await session.commit()
-    print(f"✓ Created {len(speakers)} speakers")
+    if not any(s.id is None for s in speakers):
+        await session.commit()
+    
+    # Refresh to get IDs for newly created speakers
+    for speaker in speakers:
+        if speaker.id is None:
+            await session.refresh(speaker)
+    
+    new_count = sum(1 for s in speakers if s.id is not None)
+    print(f"✓ {new_count} new speakers created, {len(speakers) - new_count} already existed")
     return speakers
 
 
 async def create_sponsors(session):
-    """Create test sponsors."""
-    print("Creating sponsors...")
+    """Create test sponsors if they don't exist."""
+    print("Checking and creating sponsors...")
     
     sponsors = []
     for sponsor_data in SPONSORS:
-        sponsor = Sponsor(
-            name=sponsor_data["name"],
-            contact_email=sponsor_data["contact_email"],
-            contact_phone=sponsor_data["contact_phone"],
-            website=sponsor_data["website"],
-            description=sponsor_data["description"],
-            created_by=1
+        from sqlalchemy import select
+        # Check if sponsor already exists by name
+        result = await session.execute(
+            select(Sponsor).where(Sponsor.name == sponsor_data["name"])
         )
-        session.add(sponsor)
-        sponsors.append(sponsor)
+        existing_sponsor = result.scalar_one_or_none()
+        
+        if existing_sponsor:
+            print(f"  - Sponsor '{sponsor_data['name']}' already exists, skipping")
+            sponsors.append(existing_sponsor)
+        else:
+            sponsor = Sponsor(
+                name=sponsor_data["name"],
+                contact_email=sponsor_data["contact_email"],
+                contact_phone=sponsor_data["contact_phone"],
+                website=sponsor_data["website"],
+                description=sponsor_data["description"],
+                created_by=1
+            )
+            session.add(sponsor)
+            sponsors.append(sponsor)
+            print(f"  - Created sponsor '{sponsor_data['name']}'")
     
-    await session.commit()
-    print(f"✓ Created {len(sponsors)} sponsors")
+    if not any(s.id is None for s in sponsors):
+        await session.commit()
+    
+    # Refresh to get IDs for newly created sponsors
+    for sponsor in sponsors:
+        if sponsor.id is None:
+            await session.refresh(sponsor)
+    
+    new_count = sum(1 for s in sponsors if s.id is not None)
+    print(f"✓ {new_count} new sponsors created, {len(sponsors) - new_count} already existed")
     return sponsors
 
 

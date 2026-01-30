@@ -10,12 +10,11 @@ from fastapi.responses import HTMLResponse
 from pathlib import Path
 
 from app.config import settings
-from app.database.connection import init_db, get_db
-from app.models.database_models import Event
+from app.database.connection import init_db, get_db, async_session_factory
+from app.models.database_models import Event, User, Venue, Speaker, Sponsor
 from app.routers import events, venues, speakers, marketing, kanban, sponsors, admin, workflow
 from app.auth.router import router as auth_router
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func
 
 
 @asynccontextmanager
@@ -61,7 +60,39 @@ app.include_router(workflow.router, prefix="", tags=["Workflow"])
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request):
     """Root endpoint - redirects to dashboard or login."""
-    return templates.TemplateResponse("dashboard.html", {"request": request, "events": []})
+    async with async_session_factory() as session:
+        # Get all events
+        result = await session.execute(select(Event))
+        events = result.scalars().all()
+        
+        # Get statistics for dashboard
+        events_planning = sum(1 for e in events if e.status == "planning")
+        events_scheduled = sum(1 for e in events if e.status == "scheduled")
+        events_completed = sum(1 for e in events if e.status == "completed")
+        
+        # Get counts using func.count for better performance
+        users_count = await session.scalar(select(func.count(User.id))) or 0
+        venues_count = await session.scalar(select(func.count(Venue.id))) or 0
+        speakers_count = await session.scalar(select(func.count(Speaker.id))) or 0
+        sponsors_count = await session.scalar(select(func.count(Sponsor.id))) or 0
+        
+    return templates.TemplateResponse(
+        "dashboard.html", 
+        {
+            "request": request, 
+            "events": events,
+            "stats": {
+                "total_events": len(events),
+                "events_planning": events_planning,
+                "events_scheduled": events_scheduled,
+                "events_completed": events_completed,
+                "users_count": users_count,
+                "venues_count": venues_count,
+                "speakers_count": speakers_count,
+                "sponsors_count": sponsors_count
+            }
+        }
+    )
 
 
 @app.get("/health")

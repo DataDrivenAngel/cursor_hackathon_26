@@ -13,20 +13,40 @@
         <!-- Quick Stats -->
         <section class="stats-section">
             <div class="stat-card">
-                <h3>Events</h3>
-                <p class="stat-number">{{ events|length }}</p>
+                <h3>Total Events</h3>
+                <p class="stat-number">{{ stats.total_events }}</p>
             </div>
             <div class="stat-card">
                 <h3>Planning</h3>
-                <p class="stat-number">{{ events|selectattr("status", "equalto", "planning")|list|length }}</p>
+                <p class="stat-number">{{ stats.events_planning }}</p>
             </div>
             <div class="stat-card">
                 <h3>Scheduled</h3>
-                <p class="stat-number">{{ events|selectattr("status", "equalto", "scheduled")|list|length }}</p>
+                <p class="stat-number">{{ stats.events_scheduled }}</p>
             </div>
             <div class="stat-card">
                 <h3>Completed</h3>
-                <p class="stat-number">{{ events|selectattr("status", "equalto", "completed")|list|length }}</p>
+                <p class="stat-number">{{ stats.events_completed }}</p>
+            </div>
+        </section>
+        
+        <!-- Entity Stats -->
+        <section class="stats-section">
+            <div class="stat-card">
+                <h3>Users</h3>
+                <p class="stat-number">{{ stats.users_count }}</p>
+            </div>
+            <div class="stat-card">
+                <h3>Venues</h3>
+                <p class="stat-number">{{ stats.venues_count }}</p>
+            </div>
+            <div class="stat-card">
+                <h3>Speakers</h3>
+                <p class="stat-number">{{ stats.speakers_count }}</p>
+            </div>
+            <div class="stat-card">
+                <h3>Sponsors</h3>
+                <p class="stat-number">{{ stats.sponsors_count }}</p>
             </div>
         </section>
         
