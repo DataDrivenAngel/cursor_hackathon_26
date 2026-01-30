@@ -1,5 +1,7 @@
 # Meetup Organizing Information Support System
 
+![MiniMax Logo](minimax.jpg)
+
 A FastAPI-based meetup organizing system with HTMX-powered frontend, agentic workflows for venue and speaker research, and integrations with Meetup and Luma.
 
 ## Features
