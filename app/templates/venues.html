@@ -44,38 +44,60 @@
         </div>
     </section>
     
-    <!-- Venues List -->
-    <section class="venues-list">
+    <!-- Venues Table -->
+    <section class="data-table-section">
         <h2>Known Venues</h2>
-        <div class="venues-grid" hx-get="/venues" hx-trigger="load" hx-target="this">
-            {% for venue in venues %}
-            <div class="venue-card">
-                <div class="venue-header">
-                    <h3>{{ venue.name }}</h3>
-                    <span class="venue-city">{{ venue.city }}</span>
-                </div>
-                <p class="venue-address">{{ venue.address }}</p>
-                <div class="venue-meta">
-                    <span class="venue-capacity">Capacity: {{ venue.capacity or "Unknown" }}</span>
-                    {% if venue.amenities %}
-                    <span class="venue-amenities">Amenities available</span>
-                    {% endif %}
-                </div>
-                <div class="venue-actions">
-                    <a href="/venues/{{ venue.id }}" class="btn btn-sm">View Details</a>
-                </div>
-            </div>
-            {% else %}
-            <div class="empty-state">
-                <p>No venues added yet. Add your first venue or use AI research.</p>
-            </div>
-            {% endfor %}
+        <div class="table-container">
+            <table class="data-table" id="venues-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Address</th>
+                        <th>City</th>
+                        <th>Country</th>
+                        <th>Capacity</th>
+                        <th>Website</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody hx-get="/venues" hx-trigger="load" hx-target="this">
+                    {% for venue in venues %}
+                    <tr>
+                        <td>
+                            <a href="/venues/{{ venue.id }}/page" class="table-link">{{ venue.name }}</a>
+                        </td>
+                        <td>{{ venue.address }}</td>
+                        <td>{{ venue.city }}</td>
+                        <td>{{ venue.country }}</td>
+                        <td>{{ venue.capacity or "N/A" }}</td>
+                        <td>
+                            {% if venue.website %}
+                            <a href="{{ venue.website }}" target="_blank" class="table-link">Visit</a>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="/venues/{{ venue.id }}/page" class="btn btn-sm">View</a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr class="empty-row">
+                        <td colspan="7">
+                            <div class="empty-state">
+                                <p>No venues added yet. Add your first venue or use AI research.</p>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </section>
     
     <!-- Add Venue Modal -->
     <dialog id="add-venue-modal">
-        <form hx-post="/venues" hx-target="#venues-grid">
+        <form hx-post="/venues" hx-target="#venues-table tbody" hx-swap="beforeend">
             <h2>Add New Venue</h2>
             <div class="form-group">
                 <label for="name">Venue Name</label>
@@ -119,5 +141,21 @@
     function closeAddModal() {
         document.getElementById('add-venue-modal').close();
     }
+    
+    // Handle form submission
+    document.addEventListener('htmx:afterRequest', function(evt) {
+        const form = evt.detail.elt;
+        if (form.tagName === 'FORM' && form.hxPost && form.hxPost.includes('/venues') && !form.hxPost.includes('/research')) {
+            if (evt.detail.successful) {
+                closeAddModal();
+                form.reset();
+                // Remove empty row if present
+                const emptyRow = document.querySelector('.empty-row');
+                if (emptyRow) {
+                    emptyRow.remove();
+                }
+            }
+        }
+    });
 </script>
 {% endblock %}

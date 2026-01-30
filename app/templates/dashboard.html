@@ -6,7 +6,7 @@
 <div class="dashboard">
     <header class="page-header">
         <h1>Dashboard</h1>
-        <a href="/events" class="btn btn-primary" hx-get="/events" hx-target="body">Create Event</a>
+        <a href="/events/page" class="btn btn-primary">Create Event</a>
     </header>
     
     <div class="dashboard-grid">
@@ -62,7 +62,7 @@
                         <span class="event-status status-{{ event.status }}">{{ event.status }}</span>
                     </div>
                     <div class="event-actions">
-                        <a href="/events/{{ event.id }}" class="btn btn-sm">View</a>
+                        <a href="/events/{{ event.id }}/page" class="btn btn-sm">View</a>
                     </div>
                 </div>
                 {% else %}
@@ -75,16 +75,16 @@
         <section class="quick-actions">
             <h2>Quick Actions</h2>
             <div class="action-buttons">
-                <a href="/events" class="btn btn-secondary" hx-get="/events" hx-target="body">
+                <a href="/events/page" class="btn btn-secondary">
                     Create Event
                 </a>
-                <a href="/venues" class="btn btn-secondary" hx-get="/venues" hx-target="body">
+                <a href="/venues/page" class="btn btn-secondary">
                     Find Venues
                 </a>
-                <a href="/speakers" class="btn btn-secondary" hx-get="/speakers" hx-target="body">
+                <a href="/speakers/page" class="btn btn-secondary">
                     Research Speakers
                 </a>
-                <a href="/sponsors" class="btn btn-secondary" hx-get="/sponsors" hx-target="body">
+                <a href="/sponsors/page" class="btn btn-secondary">
                     Manage Sponsors
                 </a>
             </div>

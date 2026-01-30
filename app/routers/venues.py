@@ -2,7 +2,9 @@
 Venues router - CRUD operations and venue research agent.
 """
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Form
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database.connection import get_db
@@ -13,6 +15,9 @@ from app.agents.venue_research import research_venues
 
 
 router = APIRouter()
+
+# Templates
+templates = Jinja2Templates(directory="app/templates")
 
 
 @router.get("/", response_model=List[VenueResponse])
@@ -34,6 +39,18 @@ async def list_venues(
     return venues
 
 
+@router.get("/page", response_class=HTMLResponse)
+async def get_venues_page(request: Request, db: AsyncSession = Depends(get_db)):
+    """Get venues page."""
+    result = await db.execute(select(Venue).order_by(Venue.name))
+    venues = result.scalars().all()
+    
+    return templates.TemplateResponse("venues.html", {
+        "request": request,
+        "venues": venues
+    })
+
+
 @router.get("/{venue_id}", response_model=VenueResponse)
 async def get_venue(venue_id: int, db: AsyncSession = Depends(get_db)):
     """Get a single venue by ID."""
@@ -49,6 +66,26 @@ async def get_venue(venue_id: int, db: AsyncSession = Depends(get_db)):
         )
     
     return venue
+
+
+@router.get("/{venue_id}/page", response_class=HTMLResponse)
+async def get_venue_page(request: Request, venue_id: int, db: AsyncSession = Depends(get_db)):
+    """Get venue detail page."""
+    result = await db.execute(
+        select(Venue).where(Venue.id == venue_id)
+    )
+    venue = result.scalar_one_or_none()
+    
+    if venue is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Venue not found"
+        )
+    
+    return templates.TemplateResponse("venue_detail.html", {
+        "request": request,
+        "venue": venue
+    })
 
 
 @router.post("/", response_model=VenueResponse, status_code=status.HTTP_201_CREATED)

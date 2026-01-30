@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}Speakers - Meetup Organizer{% endblock %}
+
+{% block content %}
+<div class="speakers-page">
+    <header class="page-header">
+        <h1>Speakers</h1>
+        <button class="btn btn-primary" onclick="showAddModal()">Add Speaker</button>
+    </header>
+    
+    <!-- Research Section -->
+    <section class="research-section">
+        <h2>Speaker Research</h2>
+        <p>Find potential speakers for your events using AI-powered research</p>
+        
+        <form hx-post="/speakers/research" hx-target="#research-results" class="research-form">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="topic">Topic</label>
+                    <input type="text" id="topic" name="topic" placeholder="e.g., Machine Learning" required>
+                </div>
+                <div class="form-group">
+                    <label for="location">Location</label>
+                    <input type="text" id="location" name="location" placeholder="City or region">
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary" onclick="this.classList.add('loading')">
+                Research Speakers
+            </button>
+        </form>
+        
+        <div id="research-results" class="research-results">
+            <!-- Research results will be loaded here -->
+        </div>
+    </section>
+    
+    <!-- Speakers Table -->
+    <section class="data-table-section">
+        <h2>Known Speakers</h2>
+        <div class="table-container">
+            <table class="data-table" id="speakers-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Company</th>
+                        <th>Role</th>
+                        <th>Email</th>
+                        <th>Expertise</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody hx-get="/speakers" hx-trigger="load" hx-target="this">
+                    {% for speaker in speakers %}
+                    <tr>
+                        <td>
+                            <a href="/speakers/{{ speaker.id }}/page" class="table-link">{{ speaker.name }}</a>
+                        </td>
+                        <td>{{ speaker.company or "-" }}</td>
+                        <td>{{ speaker.role or "-" }}</td>
+                        <td>{{ speaker.email or "-" }}</td>
+                        <td>{{ speaker.expertise or "-" }}</td>
+                        <td>
+                            <a href="/speakers/{{ speaker.id }}/page" class="btn btn-sm">View</a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr class="empty-row">
+                        <td colspan="6">
+                            <div class="empty-state">
+                                <p>No speakers added yet. Add your first speaker or use AI research.</p>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+    
+    <!-- Add Speaker Modal -->
+    <dialog id="add-speaker-modal">
+        <form hx-post="/speakers" hx-target="#speakers-table tbody" hx-swap="beforeend">
+            <h2>Add New Speaker</h2>
+            <div class="form-group">
+                <label for="name">Name</label>
+                <input type="text" id="name" name="name" required>
+            </div>
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="company">Company</label>
+                    <input type="text" id="company" name="company">
+                </div>
+                <div class="form-group">
+                    <label for="role">Role</label>
+                    <input type="text" id="role" name="role">
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="bio">Bio</label>
+                <textarea id="bio" name="bio" rows="3"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="expertise">Expertise</label>
+                <input type="text" id="expertise" name="expertise" placeholder="e.g., Python, Machine Learning">
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeAddModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Add Speaker</button>
+            </div>
+        </form>
+    </dialog>
+</div>
+
+<script>
+    function showAddModal() {
+        document.getElementById('add-speaker-modal').showModal();
+    }
+    
+    function closeAddModal() {
+        document.getElementById('add-speaker-modal').close();
+    }
+    
+    // Handle form submission
+    document.addEventListener('htmx:afterRequest', function(evt) {
+        const form = evt.detail.elt;
+        if (form.tagName === 'FORM' && form.hxPost && form.hxPost.includes('/speakers') && !form.hxPost.includes('/research')) {
+            if (evt.detail.successful) {
+                closeAddModal();
+                form.reset();
+                // Remove empty row if present
+                const emptyRow = document.querySelector('.empty-row');
+                if (emptyRow) {
+                    emptyRow.remove();
+                }
+            }
+        }
+    });
+</script>
+{% endblock %}

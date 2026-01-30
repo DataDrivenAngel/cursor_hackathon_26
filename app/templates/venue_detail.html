@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+
+{% block title %}{{ venue.name }} - Meetup Organizer{% endblock %}
+
+{% block content %}
+<div class="venue-detail-page">
+    <header class="page-header">
+        <div class="breadcrumb">
+            <a href="/venues/page">Venues</a>
+            <span>/</span>
+            <span>{{ venue.name }}</span>
+        </div>
+        <h1>{{ venue.name }}</h1>
+    </header>
+    
+    <div class="venue-detail-grid">
+        <div class="main-content">
+            <section class="card">
+                <div class="card-header">
+                    <h2>Venue Details</h2>
+                </div>
+                <div class="card-body">
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <span class="detail-label">Address</span>
+                            <span class="detail-value">{{ venue.address }}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">City</span>
+                            <span class="detail-value">{{ venue.city }}</span>
+                        </div>
+                        {% if venue.state %}
+                        <div class="detail-item">
+                            <span class="detail-label">State</span>
+                            <span class="detail-value">{{ venue.state }}</span>
+                        </div>
+                        {% endif %}
+                        <div class="detail-item">
+                            <span class="detail-label">Country</span>
+                            <span class="detail-value">{{ venue.country }}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Capacity</span>
+                            <span class="detail-value">{{ venue.capacity or "Not specified" }}</span>
+                        </div>
+                        {% if venue.website %}
+                        <div class="detail-item">
+                            <span class="detail-label">Website</span>
+                            <span class="detail-value">
+                                <a href="{{ venue.website }}" target="_blank">{{ venue.website }}</a>
+                            </span>
+                        </div>
+                        {% endif %}
+                        {% if venue.contact_email %}
+                        <div class="detail-item">
+                            <span class="detail-label">Contact Email</span>
+                            <span class="detail-value">{{ venue.contact_email }}</span>
+                        </div>
+                        {% endif %}
+                        {% if venue.contact_phone %}
+                        <div class="detail-item">
+                            <span class="detail-label">Contact Phone</span>
+                            <span class="detail-value">{{ venue.contact_phone }}</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </section>
+            
+            {% if venue.amenities %}
+            <section class="card">
+                <div class="card-header">
+                    <h2>Amenities</h2>
+                </div>
+                <div class="card-body">
+                    <div class="amenities-list">
+                        {% for amenity in venue.amenities %}
+                        <span class="amenity-badge">{{ amenity }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+            </section>
+            {% endif %}
+            
+            {% if venue.research_data %}
+            <section class="card">
+                <div class="card-header">
+                    <h2>Research Data</h2>
+                </div>
+                <div class="card-body">
+                    <pre class="research-data">{{ venue.research_data }}</pre>
+                </div>
+            </section>
+            {% endif %}
+        </div>
+        
+        <div class="sidebar">
+            <section class="card">
+                <div class="card-header">
+                    <h2>Actions</h2>
+                </div>
+                <div class="card-body">
+                    <a href="/venues/page" class="btn btn-secondary" style="width: 100%;">Back to Venues</a>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+
+<style>
+.venue-detail-page {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.breadcrumb {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    font-size: 0.875rem;
+    color: var(--color-text-muted);
+}
+
+.breadcrumb a {
+    color: var(--color-primary);
+    text-decoration: none;
+}
+
+.venue-detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 24px;
+    margin-top: 24px;
+}
+
+@media (max-width: 1024px) {
+    .venue-detail-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.detail-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+}
+
+.detail-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.detail-label {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.detail-value {
+    font-size: 0.875rem;
+    color: var(--color-text);
+}
+
+.detail-value a {
+    color: var(--color-primary);
+}
+
+.amenities-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.amenity-badge {
+    padding: 4px 12px;
+    background: #dbeafe;
+    color: #1e40af;
+    border-radius: var(--radius);
+    font-size: 0.875rem;
+}
+
+.research-data {
+    background: var(--color-bg);
+    padding: var(--spacing);
+    border-radius: var(--radius);
+    font-size: 0.75rem;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    font-family: var(--font-mono);
+}
+</style>
+{% endblock %}

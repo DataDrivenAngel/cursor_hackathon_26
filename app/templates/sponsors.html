@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block title %}Sponsors - Meetup Organizer{% endblock %}
+
+{% block content %}
+<div class="sponsors-page">
+    <header class="page-header">
+        <h1>Sponsors</h1>
+        <button class="btn btn-primary" onclick="showAddModal()">Add Sponsor</button>
+    </header>
+    
+    <!-- Sponsors List -->
+    <section class="sponsors-list">
+        <h2>Known Sponsors</h2>
+        <div class="sponsors-grid" id="sponsors-grid" hx-get="/sponsors" hx-trigger="load" hx-target="this">
+            {% for sponsor in sponsors %}
+            <div class="sponsor-card">
+                <div class="sponsor-header">
+                    <h3>{{ sponsor.name }}</h3>
+                </div>
+                {% if sponsor.description %}
+                <p class="sponsor-description">{{ sponsor.description|truncate(100) }}</p>
+                {% endif %}
+                <div class="sponsor-meta">
+                    <span class="sponsor-email">{{ sponsor.contact_email }}</span>
+                    {% if sponsor.website %}
+                    <a href="{{ sponsor.website }}" target="_blank" class="sponsor-website">{{ sponsor.website }}</a>
+                    {% endif %}
+                    {% if sponsor.contact_phone %}
+                    <span class="sponsor-phone">{{ sponsor.contact_phone }}</span>
+                    {% endif %}
+                </div>
+                <div class="sponsor-actions">
+                    <a href="/sponsors/{{ sponsor.id }}/page" class="btn btn-sm">View Details</a>
+                </div>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <p>No sponsors added yet. Add your first sponsor.</p>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    
+    <!-- Add Sponsor Modal -->
+    <dialog id="add-sponsor-modal">
+        <form hx-post="/sponsors" hx-target="#sponsors-grid" hx-swap="beforeend">
+            <h2>Add New Sponsor</h2>
+            <div class="form-group">
+                <label for="name">Company Name</label>
+                <input type="text" id="name" name="name" required>
+            </div>
+            <div class="form-group">
+                <label for="contact_email">Contact Email</label>
+                <input type="email" id="contact_email" name="contact_email" required>
+            </div>
+            <div class="form-group">
+                <label for="contact_phone">Contact Phone</label>
+                <input type="text" id="contact_phone" name="contact_phone">
+            </div>
+            <div class="form-group">
+                <label for="website">Website</label>
+                <input type="url" id="website" name="website" placeholder="https://">
+            </div>
+            <div class="form-group">
+                <label for="description">Description</label>
+                <textarea id="description" name="description" rows="3"></textarea>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeAddModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Add Sponsor</button>
+            </div>
+        </form>
+    </dialog>
+</div>
+
+<script>
+    function showAddModal() {
+        document.getElementById('add-sponsor-modal').showModal();
+    }
+    
+    function closeAddModal() {
+        document.getElementById('add-sponsor-modal').close();
+    }
+    
+    // Handle form submission
+    document.addEventListener('htmx:afterRequest', function(evt) {
+        const form = evt.detail.elt;
+        if (form.tagName === 'FORM' && form.hxPost && form.hxPost.includes('/sponsors')) {
+            if (evt.detail.successful) {
+                closeAddModal();
+                form.reset();
+                // Remove empty state if present
+                const emptyState = document.querySelector('.empty-state');
+                if (emptyState) {
+                    emptyState.remove();
+                }
+            }
+        }
+    });
+</script>
+
+<style>
+.sponsors-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+    margin-top: 16px;
+}
+
+.sponsor-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-lg);
+}
+
+.sponsor-header {
+    margin-bottom: var(--spacing);
+}
+
+.sponsor-header h3 {
+    margin: 0;
+    font-size: 1.125rem;
+}
+
+.sponsor-description {
+    font-size: 0.875rem;
+    color: var(--color-text-muted);
+    margin-bottom: var(--spacing);
+}
+
+.sponsor-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    margin-bottom: var(--spacing);
+}
+
+.sponsor-email {
+    color: var(--color-primary);
+}
+
+.sponsor-website {
+    color: var(--color-primary);
+    text-decoration: none;
+}
+
+.sponsor-website:hover {
+    text-decoration: underline;
+}
+
+.sponsor-actions {
+    margin-top: var(--spacing);
+}
+</style>
+{% endblock %}

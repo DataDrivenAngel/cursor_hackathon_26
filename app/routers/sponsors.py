@@ -2,7 +2,9 @@
 Sponsors router - CRUD operations and event-sponsor linking.
 """
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database.connection import get_db
@@ -12,6 +14,9 @@ from app.models.database_models import User, Sponsor, Event, EventSponsor
 
 
 router = APIRouter()
+
+# Templates
+templates = Jinja2Templates(directory="app/templates")
 
 
 @router.get("/", response_model=List[SponsorResponse])
@@ -31,6 +36,18 @@ async def list_sponsors(
     return sponsors
 
 
+@router.get("/page", response_class=HTMLResponse)
+async def get_sponsors_page(request: Request, db: AsyncSession = Depends(get_db)):
+    """Get sponsors page."""
+    result = await db.execute(select(Sponsor).order_by(Sponsor.name))
+    sponsors = result.scalars().all()
+    
+    return templates.TemplateResponse("sponsors.html", {
+        "request": request,
+        "sponsors": sponsors
+    })
+
+
 @router.get("/{sponsor_id}", response_model=SponsorResponse)
 async def get_sponsor(sponsor_id: int, db: AsyncSession = Depends(get_db)):
     """Get a single sponsor by ID."""
@@ -46,6 +63,26 @@ async def get_sponsor(sponsor_id: int, db: AsyncSession = Depends(get_db)):
         )
     
     return sponsor
+
+
+@router.get("/{sponsor_id}/page", response_class=HTMLResponse)
+async def get_sponsor_page(request: Request, sponsor_id: int, db: AsyncSession = Depends(get_db)):
+    """Get sponsor detail page."""
+    result = await db.execute(
+        select(Sponsor).where(Sponsor.id == sponsor_id)
+    )
+    sponsor = result.scalar_one_or_none()
+    
+    if sponsor is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Sponsor not found"
+        )
+    
+    return templates.TemplateResponse("sponsor_detail.html", {
+        "request": request,
+        "sponsor": sponsor
+    })
 
 
 @router.post("/", response_model=SponsorResponse, status_code=status.HTTP_201_CREATED)

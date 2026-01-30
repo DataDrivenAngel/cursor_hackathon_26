@@ -2,7 +2,9 @@
 Speakers router - CRUD operations, speaker research agent, and attendee enrichment.
 """
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database.connection import get_db
@@ -17,6 +19,9 @@ from app.agents.speaker_research import research_speakers, enrich_attendee
 
 
 router = APIRouter()
+
+# Templates
+templates = Jinja2Templates(directory="app/templates")
 
 
 # ==================== Speakers ====================
@@ -40,6 +45,18 @@ async def list_speakers(
     return speakers
 
 
+@router.get("/page", response_class=HTMLResponse)
+async def get_speakers_page(request: Request, db: AsyncSession = Depends(get_db)):
+    """Get speakers page."""
+    result = await db.execute(select(Speaker).order_by(Speaker.name))
+    speakers = result.scalars().all()
+    
+    return templates.TemplateResponse("speakers.html", {
+        "request": request,
+        "speakers": speakers
+    })
+
+
 @router.get("/{speaker_id}", response_model=SpeakerResponse)
 async def get_speaker(speaker_id: int, db: AsyncSession = Depends(get_db)):
     """Get a single speaker by ID."""
@@ -55,6 +72,26 @@ async def get_speaker(speaker_id: int, db: AsyncSession = Depends(get_db)):
         )
     
     return speaker
+
+
+@router.get("/{speaker_id}/page", response_class=HTMLResponse)
+async def get_speaker_page(request: Request, speaker_id: int, db: AsyncSession = Depends(get_db)):
+    """Get speaker detail page."""
+    result = await db.execute(
+        select(Speaker).where(Speaker.id == speaker_id)
+    )
+    speaker = result.scalar_one_or_none()
+    
+    if speaker is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Speaker not found"
+        )
+    
+    return templates.TemplateResponse("speaker_detail.html", {
+        "request": request,
+        "speaker": speaker
+    })
 
 
 @router.post("/", response_model=SpeakerResponse, status_code=status.HTTP_201_CREATED)
